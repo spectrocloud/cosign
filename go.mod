@@ -1,4 +1,4 @@
-module github.com/spectrocloud/cosign/v2
+module github.com/sigstore/cosign/v2
 
 go 1.22.5
 
