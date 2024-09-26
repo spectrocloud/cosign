@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
@@ -126,8 +125,6 @@ func getImageRef(ref name.Reference) (string, error) {
 	if ref == nil {
 		return "", errors.New("reference is nil")
 	}
-	registry := ref.Context().RegistryStr() + "/"
 	imageRef := ref.Name()
-	imageRef = strings.TrimPrefix(imageRef, registry)
 	return imageRef, nil
 }
