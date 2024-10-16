@@ -33,6 +33,64 @@ import (
 	ctypes "github.com/sigstore/cosign/v2/pkg/types"
 )
 
+func WriteSignedImage(si oci.SignedImage, ref name.Reference, opts ...Option) error {
+	repo := ref.Context()
+	o := makeOptions(repo, opts...)
+
+	fmt.Println("writing signed image to", ref.Name())
+	if err := remoteWrite(ref, si, o.ROpt...); err != nil {
+		return fmt.Errorf("remote write: %w", err)
+	}
+
+	// write the signatures
+	sigs, err := si.Signatures()
+	if err != nil {
+		return err
+	}
+	if sigs != nil { // will be nil if there are no associated signatures
+		sigsTag, err := SignatureTag(ref, opts...)
+		if err != nil {
+			return fmt.Errorf("sigs tag: %w", err)
+		}
+		fmt.Println("writing signature image to ", sigsTag.String())
+		if err := remoteWrite(sigsTag, sigs, o.ROpt...); err != nil {
+			return err
+		}
+	}
+
+	// write the attestations
+	atts, err := si.Attestations()
+	if err != nil {
+		return err
+	}
+	if atts != nil { // will be nil if there are no associated attestations
+		attsTag, err := AttestationTag(ref, opts...)
+		if err != nil {
+			return fmt.Errorf("sigs tag: %w", err)
+		}
+		fmt.Println("writing attestation image to ", attsTag.String())
+		return remoteWrite(attsTag, atts, o.ROpt...)
+	}
+
+	// write the attachments
+	// implementing sboms for starters
+	sboms, err := si.Attachment("sbom")
+	if err != nil {
+		return err
+	}
+	if sboms != nil { // will be nil if there are no associated sboms
+		sbomTag, err := SBOMTag(ref, opts...)
+		if err != nil {
+			return fmt.Errorf("sbom tag: %w", err)
+		}
+		fmt.Println("writing sbom image to ", sbomTag.String())
+		if err := remoteWrite(sbomTag, sboms, o.ROpt...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // WriteSignedImageIndexImages writes the images within the image index
 // This includes the signed image and associated signatures in the image index
 // TODO (priyawadhwa@): write the `index.json` itself to the repo as well
@@ -125,7 +183,7 @@ func WriteSignedImageIndexImagesBulk(targetRegistry string, sii oci.SignedImageI
 		// write image index if exists
 		if val, ok := m.Annotations[layout.KindAnnotation]; ok && val == layout.ImageIndexAnnotation {
 			imgTitle := m.Annotations[layout.ImageRefAnnotation]
-			fmt.Println(imgTitle)
+			fmt.Println("writing image index: ", imgTitle)
 			si, err := sii.SignedImageIndex(m.Digest)
 			if err != nil {
 				return fmt.Errorf("signed image index: %w", err)
@@ -146,7 +204,7 @@ func WriteSignedImageIndexImagesBulk(targetRegistry string, sii oci.SignedImageI
 		// write any images
 		if val, ok := m.Annotations[layout.KindAnnotation]; ok && val == layout.ImageAnnotation {
 			imgTitle := m.Annotations[layout.ImageRefAnnotation]
-			fmt.Println(imgTitle)
+			fmt.Println("writing image: ", imgTitle)
 			si, err := sii.SignedImage(m.Digest)
 			if err != nil {
 				return fmt.Errorf("signed image: %w", err)
@@ -167,6 +225,7 @@ func WriteSignedImageIndexImagesBulk(targetRegistry string, sii oci.SignedImageI
 		// write the signatures
 		if val, ok := m.Annotations[layout.KindAnnotation]; ok && val == layout.SigsAnnotation {
 			imgTitle := m.Annotations[layout.ImageRefAnnotation]
+			fmt.Println("writing signatures for: ", imgTitle)
 			sigs, err := sii.SignedImage(m.Digest)
 			if err != nil {
 				return err
@@ -191,6 +250,7 @@ func WriteSignedImageIndexImagesBulk(targetRegistry string, sii oci.SignedImageI
 		// write the attestations
 		if val, ok := m.Annotations[layout.KindAnnotation]; ok && val == layout.AttsAnnotation {
 			imgTitle := m.Annotations[layout.ImageRefAnnotation]
+			fmt.Println("writing attestations for: ", imgTitle)
 			atts, err := sii.SignedImage(m.Digest)
 			if err != nil {
 				return err
@@ -215,6 +275,7 @@ func WriteSignedImageIndexImagesBulk(targetRegistry string, sii oci.SignedImageI
 		// write the sboms
 		if val, ok := m.Annotations[layout.KindAnnotation]; ok && val == layout.SbomsAnnotation {
 			imgTitle := m.Annotations[layout.ImageRefAnnotation]
+			fmt.Println("writing sboms for: ", imgTitle)
 			sboms, err := sii.SignedImage(m.Digest)
 			if err != nil {
 				return err
