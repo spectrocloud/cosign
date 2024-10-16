@@ -78,23 +78,14 @@ func RemoteLoadCmd(ctx context.Context, opts options.RemoteLoadOptions, src, dst
 	if err != nil {
 		return err
 	}
+
 	if !signed {
 		return crane.Copy(src, dst)
+	} else {
+		fmt.Println("image has signature")
 	}
 
-	if _, ok := se.(oci.SignedImage); ok {
-		fmt.Println("writing signed image")
-		si := se.(oci.SignedImage)
-		return remote.WriteSignedImage(dstRef, si, ociremoteOpts...)
-	}
-
-	if _, ok := se.(oci.SignedImageIndex); ok {
-		fmt.Println("writing signed image index")
-		sii := se.(oci.SignedImageIndex)
-		return remote.WriteSignedImageIndexImages(dstRef, sii, ociremoteOpts...)
-	}
-
-	return fmt.Errorf("unsupported type: %T", se)
+	return remote.WriteSignedEntity(srcRef, dstRef, se, ociremoteOpts...)
 }
 
 func imageHasSignature(se oci.SignedEntity) (bool, error) {

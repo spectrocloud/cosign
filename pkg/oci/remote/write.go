@@ -18,13 +18,16 @@ package remote
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/google/go-containerregistry/pkg/logs"
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	ociexperimental "github.com/sigstore/cosign/v2/internal/pkg/oci/remote"
@@ -33,62 +36,150 @@ import (
 	ctypes "github.com/sigstore/cosign/v2/pkg/types"
 )
 
-func WriteSignedImage(ref name.Reference, si oci.SignedImage, opts ...Option) error {
-	repo := ref.Context()
+func WriteSignedEntity(src, dst name.Reference, si oci.SignedEntity, opts ...Option) error {
+	repo := dst.Context()
 	o := makeOptions(repo, opts...)
 
-	fmt.Println("writing signed image to", ref.Name())
-	if err := remoteWrite(ref, si, o.ROpt...); err != nil {
-		return fmt.Errorf("remote write: %w", err)
+	switch si := si.(type) {
+	case oci.SignedImage:
+		fmt.Println("writing signed image to", dst.Name())
+		if err := remoteWrite(dst, si, o.ROpt...); err != nil {
+			return fmt.Errorf("remote write: %w", err)
+		}
+	case oci.SignedImageIndex:
+		fmt.Println("writing signed image index to", dst.Name())
+		if err := remote.WriteIndex(dst, si, o.ROpt...); err != nil {
+			return fmt.Errorf("writing index: %w", err)
+		}
+	default:
+		return fmt.Errorf("unsupported signed entity type: %T", si)
 	}
 
+	if err := writeSignedEntitySignatures(src, dst, si, opts...); err != nil {
+		return err
+	}
+
+	if err := writeSignedEntityAttestations(src, dst, si, opts...); err != nil {
+		return err
+	}
+
+	if err := writeSignedEntityAttachments(src, dst, si, opts...); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeSignedEntitySignatures(src, dst name.Reference, si oci.SignedEntity, opts ...Option) error {
+	repo := dst.Context()
+	o := makeOptions(repo, opts...)
 	// write the signatures
 	sigs, err := si.Signatures()
 	if err != nil {
+		if errors.Is(err, ErrImageNotFound) {
+			return nil
+		}
 		return err
 	}
 	if sigs != nil { // will be nil if there are no associated signatures
-		sigsTag, err := SignatureTag(ref, opts...)
+		sigsTag, err := SignatureTag(dst, opts...)
 		if err != nil {
 			return fmt.Errorf("sigs tag: %w", err)
 		}
-		fmt.Println("writing signature image to ", sigsTag.String())
-		if err := remoteWrite(sigsTag, sigs, o.ROpt...); err != nil {
+		srcSigsTag, err := SignatureTag(src, opts...)
+		if err != nil {
+			return fmt.Errorf("sigs tag: %w", err)
+		}
+
+		if err := remoteWriteIfExists(srcSigsTag, sigsTag, sigs, o.ROpt...); err != nil {
 			return err
 		}
 	}
 
-	// write the attestations
+	return nil
+}
+
+func writeSignedEntityAttestations(src, dst name.Reference, si oci.SignedEntity, opts ...Option) error {
+	repo := dst.Context()
+	o := makeOptions(repo, opts...)
 	atts, err := si.Attestations()
 	if err != nil {
+		if errors.Is(err, ErrImageNotFound) {
+			return nil
+		}
 		return err
 	}
 	if atts != nil { // will be nil if there are no associated attestations
-		attsTag, err := AttestationTag(ref, opts...)
+		attsTag, err := AttestationTag(dst, opts...)
 		if err != nil {
 			return fmt.Errorf("sigs tag: %w", err)
 		}
-		fmt.Println("writing attestation image to ", attsTag.String())
-		return remoteWrite(attsTag, atts, o.ROpt...)
-	}
-
-	// write the attachments
-	// implementing sboms for starters
-	sboms, err := si.Attachment("sbom")
-	if err != nil {
-		return err
-	}
-	if sboms != nil { // will be nil if there are no associated sboms
-		sbomTag, err := SBOMTag(ref, opts...)
+		srcAttsTag, err := AttestationTag(src, opts...)
 		if err != nil {
-			return fmt.Errorf("sbom tag: %w", err)
+			return fmt.Errorf("sigs tag: %w", err)
 		}
-		fmt.Println("writing sbom image to ", sbomTag.String())
-		if err := remoteWrite(sbomTag, sboms, o.ROpt...); err != nil {
+
+		if err := remoteWriteIfExists(srcAttsTag, attsTag, atts, o.ROpt...); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func writeSignedEntityAttachments(src, dst name.Reference, si oci.SignedEntity, opts ...Option) error {
+	repo := dst.Context()
+	o := makeOptions(repo, opts...)
+	// write the attachments
+	// implementing sboms for starters
+	sboms, err := si.Attachment("sbom")
+	if err != nil {
+		if errors.Is(err, ErrImageNotFound) {
+			return nil
+		}
+		return err
+	}
+	if sboms != nil { // will be nil if there are no associated sboms
+		sbomTag, err := SBOMTag(dst, opts...)
+		if err != nil {
+			return fmt.Errorf("sbom tag: %w", err)
+		}
+		srcSbomTag, err := SBOMTag(src, opts...)
+		if err != nil {
+			return fmt.Errorf("sbom tag: %w", err)
+		}
+
+		if err := remoteWriteIfExists(srcSbomTag, sbomTag, sboms, o.ROpt...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func remoteWriteIfExists(src, dst name.Reference, img v1.Image, opts ...remote.Option) error {
+	if exist, err := imageExists(src, opts...); err != nil {
+		return err
+	} else if exist {
+		fmt.Println("writing image to ", dst.Name())
+		return remoteWrite(dst, img, opts...)
+	}
+	return nil
+}
+
+func imageExists(ref name.Reference, opts ...remote.Option) (bool, error) {
+	_, err := remote.Get(ref, opts...)
+	if err != nil {
+		var te *transport.Error
+		if errors.As(err, &te) && te.StatusCode == http.StatusNotFound {
+			// We do not treat 404s on the source image as errors because we are
+			// trying many flavors of tag (sig, sbom, att) and only a subset of
+			// these are likely to exist, especially when we're talking about a
+			// multi-arch image.
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
 }
 
 // WriteSignedImageIndexImages writes the images within the image index
