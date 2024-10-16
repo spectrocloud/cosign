@@ -33,7 +33,7 @@ import (
 	ctypes "github.com/sigstore/cosign/v2/pkg/types"
 )
 
-func WriteSignedImage(si oci.SignedImage, ref name.Reference, opts ...Option) error {
+func WriteSignedImage(ref name.Reference, si oci.SignedImage, opts ...Option) error {
 	repo := ref.Context()
 	o := makeOptions(repo, opts...)
 
