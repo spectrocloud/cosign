@@ -18,8 +18,8 @@ package cli
 import (
 	"context"
 	"fmt"
-	"path"
 
+	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
@@ -36,11 +36,11 @@ func RemoteLoad() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:              "remote-load",
-		Example:          `cosign remote-load <IMAGE> --registry <REGISTRY>`,
-		Args:             cobra.ExactArgs(1),
+		Example:          `cosign remote-load <SRC> <DST>`,
+		Args:             cobra.ExactArgs(2),
 		PersistentPreRun: options.BindViper,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return RemoteLoadCmd(cmd.Context(), *o, args[0])
+			return RemoteLoadCmd(cmd.Context(), *o, args[0], args[1])
 		},
 	}
 
@@ -48,14 +48,13 @@ func RemoteLoad() *cobra.Command {
 	return cmd
 }
 
-func RemoteLoadCmd(ctx context.Context, opts options.RemoteLoadOptions, imageRef string) error {
-	srcRef, err := name.ParseReference(imageRef)
+func RemoteLoadCmd(ctx context.Context, opts options.RemoteLoadOptions, src, dst string) error {
+	srcRef, err := name.ParseReference(src)
 	if err != nil {
 		return err
 	}
 
-	targetImage := path.Join(opts.Registry.Name, imageRef)
-	targetRef, err := name.ParseReference(targetImage)
+	dstRef, err := name.ParseReference(dst)
 	if err != nil {
 		return err
 	}
@@ -75,15 +74,34 @@ func RemoteLoadCmd(ctx context.Context, opts options.RemoteLoadOptions, imageRef
 		return err
 	}
 
-	if _, ok := se.(oci.SignedImage); ok {
-		si := se.(oci.SignedImage)
-		return remote.WriteSignedImage(si, targetRef, ociremoteOpts...)
+	signed, err := imageHasSignature(se)
+	if err != nil {
+		return err
 	}
 
-	if _, ok := se.(oci.SignedImageIndex); ok {
-		sii := se.(oci.SignedImageIndex)
-		return remote.WriteSignedImageIndexImages(targetRef, sii, ociremoteOpts...)
+	if !signed {
+		return crane.Copy(src, dst)
+	} else {
+		fmt.Println("image has signature")
 	}
 
-	return fmt.Errorf("unsupported signed entity type")
+	return remote.WriteSignedEntity(srcRef, dstRef, se, ociremoteOpts...)
+}
+
+func imageHasSignature(se oci.SignedEntity) (bool, error) {
+	sigs, err := se.Signatures()
+	if err != nil {
+		return false, err
+	}
+
+	if sigs == nil {
+		return false, nil
+	}
+
+	ss, err := sigs.Get()
+	if err != nil {
+		return false, err
+	}
+
+	return len(ss) > 0, nil
 }
