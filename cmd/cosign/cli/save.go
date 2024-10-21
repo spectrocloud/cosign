@@ -54,7 +54,10 @@ func SaveCmd(ctx context.Context, opts options.SaveOptions, imageRef string) err
 		return fmt.Errorf("parsing image name %s: %w", imageRef, err)
 	}
 
-	se, err := ociremote.SignedEntity(ref, ociremote.WithCachePath(opts.CachePath))
+	se, err := ociremote.SignedEntity(ref,
+		ociremote.WithCachePath(opts.CachePath),
+		ociremote.WithRemoteOptions(opts.Registry.GetRegistryClientOpts(ctx)...),
+	)
 	if err != nil {
 		return fmt.Errorf("signed entity: %w", err)
 	}

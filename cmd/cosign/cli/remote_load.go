@@ -59,12 +59,12 @@ func RemoteLoadCmd(ctx context.Context, opts options.RemoteLoadOptions, src, dst
 		return err
 	}
 
-	se, err := ociremote.SignedEntity(srcRef)
+	ociremoteOpts, err := opts.Registry.ClientOpts(ctx)
 	if err != nil {
 		return err
 	}
 
-	ociremoteOpts, err := opts.Registry.ClientOpts(ctx)
+	se, err := ociremote.SignedEntity(srcRef, ociremoteOpts...)
 	if err != nil {
 		return err
 	}
