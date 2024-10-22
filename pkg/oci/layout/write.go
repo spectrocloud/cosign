@@ -27,6 +27,13 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/oci"
 )
 
+const (
+	SignatureTagSuffix   = "sig"
+	SBOMTagSuffix        = "sbom"
+	AttestationTagSuffix = "att"
+	CustomTagPrefix      = ""
+)
+
 // WriteSignedImage writes the image and all related signatures, attestations and attachments
 func WriteSignedImage(path string, si oci.SignedImage, ref name.Reference) error {
 	layoutPath, err := layout.FromPath(path)
@@ -77,7 +84,12 @@ func writeSignedEntity(path layout.Path, se oci.SignedEntity, ref name.Reference
 		return fmt.Errorf("getting signatures: %w", err)
 	}
 	if !isEmpty(sigs) {
-		if err := appendImage(path, sigs, ref, SigsAnnotation); err != nil {
+		h, err := se.Digest()
+		if err != nil {
+			return fmt.Errorf("getting digest: %w", err)
+		}
+		tag := ref.Context().Tag(normalize(h, CustomTagPrefix, SignatureTagSuffix))
+		if err := appendImage(path, sigs, tag, SigsAnnotation); err != nil {
 			return fmt.Errorf("appending signatures: %w", err)
 		}
 	}
@@ -88,7 +100,12 @@ func writeSignedEntity(path layout.Path, se oci.SignedEntity, ref name.Reference
 		return fmt.Errorf("getting atts")
 	}
 	if !isEmpty(atts) {
-		if err := appendImage(path, atts, ref, AttsAnnotation); err != nil {
+		h, err := se.Digest()
+		if err != nil {
+			return fmt.Errorf("getting digest: %w", err)
+		}
+		tag := ref.Context().Tag(normalize(h, CustomTagPrefix, AttestationTagSuffix))
+		if err := appendImage(path, atts, tag, AttsAnnotation); err != nil {
 			return fmt.Errorf("appending atts: %w", err)
 		}
 	}
@@ -99,7 +116,12 @@ func writeSignedEntity(path layout.Path, se oci.SignedEntity, ref name.Reference
 	if err != nil {
 		return nil // no sbom found
 	}
-	if err := appendImage(path, sboms, ref, SbomsAnnotation); err != nil {
+	h, err := se.Digest()
+	if err != nil {
+		return fmt.Errorf("getting digest: %w", err)
+	}
+	tag := ref.Context().Tag(normalize(h, CustomTagPrefix, SBOMTagSuffix))
+	if err := appendImage(path, sboms, tag, SbomsAnnotation); err != nil {
 		return fmt.Errorf("appending attachments: %w", err)
 	}
 	return nil
@@ -127,4 +149,17 @@ func getImageRef(ref name.Reference) (string, error) {
 	}
 	imageRef := ref.Name()
 	return imageRef, nil
+}
+
+func normalize(h v1.Hash, prefix string, suffix string) string {
+	return normalizeWithSeparator(h, prefix, suffix, "-")
+}
+
+// normalizeWithSeparator turns image digests into tags with optional prefix & suffix:
+// sha256:d34db33f -> [prefix]sha256[algorithmSeparator]d34db33f[.suffix]
+func normalizeWithSeparator(h v1.Hash, prefix string, suffix string, algorithmSeparator string) string {
+	if suffix == "" {
+		return fmt.Sprint(prefix, h.Algorithm, algorithmSeparator, h.Hex)
+	}
+	return fmt.Sprint(prefix, h.Algorithm, algorithmSeparator, h.Hex, ".", suffix)
 }
