@@ -326,13 +326,9 @@ func WriteSignedImageIndexImagesBulk(targetRegistry string, sii oci.SignedImageI
 				if err != nil {
 					return err
 				}
-				sigsTag, err := SignatureTag(ref, opts...)
-				if err != nil {
-					return fmt.Errorf("sigs tag: %w", err)
-				}
 				repo := ref.Context()
 				o := makeOptions(repo, opts...)
-				if err := remoteWrite(sigsTag, sigs, o.ROpt...); err != nil {
+				if err := remoteWrite(ref, sigs, o.ROpt...); err != nil {
 					return err
 				}
 			}
@@ -351,13 +347,9 @@ func WriteSignedImageIndexImagesBulk(targetRegistry string, sii oci.SignedImageI
 				if err != nil {
 					return err
 				}
-				attsTag, err := AttestationTag(ref, opts...)
-				if err != nil {
-					return fmt.Errorf("sigs tag: %w", err)
-				}
 				repo := ref.Context()
 				o := makeOptions(repo, opts...)
-				if err := remoteWrite(attsTag, atts, o.ROpt...); err != nil {
+				if err := remoteWrite(ref, atts, o.ROpt...); err != nil {
 					return err
 				}
 			}
@@ -376,13 +368,9 @@ func WriteSignedImageIndexImagesBulk(targetRegistry string, sii oci.SignedImageI
 				if err != nil {
 					return err
 				}
-				sbomsTag, err := SBOMTag(ref, opts...)
-				if err != nil {
-					return fmt.Errorf("sboms tag: %w", err)
-				}
 				repo := ref.Context()
 				o := makeOptions(repo, opts...)
-				if err := remoteWrite(sbomsTag, sboms, o.ROpt...); err != nil {
+				if err := remoteWrite(ref, sboms, o.ROpt...); err != nil {
 					return err
 				}
 			}
