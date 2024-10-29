@@ -62,7 +62,7 @@ func AttestationCmd(ctx context.Context, regOpts options.RegistryOptions, attOpt
 	}
 
 	se, err = platform.SignedEntityForPlatform(se, attOptions.Platform)
-	if err != nil {
+	if err != nil && !errors.Is(err, platform.ErrRefNotMultiArch) {
 		return err
 	}
 
