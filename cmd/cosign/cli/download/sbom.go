@@ -59,7 +59,7 @@ func SBOMCmd(
 	}
 
 	se, err = platform.SignedEntityForPlatform(se, dnOpts.Platform)
-	if err != nil {
+	if err != nil && !errors.Is(err, platform.ErrRefNotMultiArch) {
 		return nil, err
 	}
 

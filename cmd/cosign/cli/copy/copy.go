@@ -74,7 +74,7 @@ func CopyCmd(ctx context.Context, regOpts options.RegistryOptions, srcImg, dstIm
 	}
 
 	root, err = ociplatform.SignedEntityForPlatform(root, platform)
-	if err != nil {
+	if err != nil && !errors.Is(err, ociplatform.ErrRefNotMultiArch) {
 		return err
 	}
 
