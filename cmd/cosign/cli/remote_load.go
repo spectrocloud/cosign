@@ -69,7 +69,7 @@ func RemoteLoadCmd(ctx context.Context, opts options.RemoteLoadOptions, src, dst
 		return err
 	}
 
-	se, err = ociplatform.SignedEntityForPlatform(se, "")
+	se, err = ociplatform.SignedEntityForPlatform(se, opts.Platform)
 	if err != nil {
 		return err
 	}

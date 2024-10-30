@@ -63,7 +63,7 @@ func SaveCmd(ctx context.Context, opts options.SaveOptions, imageRef string) err
 	}
 
 	se, err = ociplatform.SignedEntityForPlatform(se, opts.Platform)
-	if err != nil {
+	if err != nil && !errors.Is(err, ociplatform.ErrRefNotMultiArch) {
 		return err
 	}
 

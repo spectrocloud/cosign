@@ -22,6 +22,7 @@ import (
 // LoadOptions is the top level wrapper for the load command.
 type RemoteLoadOptions struct {
 	Registry RegistryOptions
+	Platform string
 }
 
 var _ Interface = (*RemoteLoadOptions)(nil)
@@ -33,4 +34,6 @@ func (o *RemoteLoadOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&o.Registry.Name, "registry", "",
 		"registry to use for remote load")
 	_ = cmd.Flags().SetAnnotation("registry", cobra.BashCompSubdirsInDir, []string{})
+	cmd.Flags().StringVar(&o.Platform, "platform", "",
+		"only load container image and its signatures for a specific platform image")
 }
