@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"time"
 
@@ -28,7 +27,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	ociexperimental "github.com/sigstore/cosign/v2/internal/pkg/oci/remote"
@@ -38,7 +36,7 @@ import (
 	sgbundle "github.com/sigstore/sigstore-go/pkg/bundle"
 )
 
-func WriteSignedEntity(src, dst name.Reference, si oci.SignedEntity, opts ...Option) error {
+func WriteSignedEntity(dst name.Reference, si oci.SignedEntity, opts ...Option) error {
 	repo := dst.Context()
 	o := makeOptions(repo, opts...)
 
@@ -57,22 +55,22 @@ func WriteSignedEntity(src, dst name.Reference, si oci.SignedEntity, opts ...Opt
 		return fmt.Errorf("unsupported signed entity type: %T", si)
 	}
 
-	if err := writeSignedEntitySignatures(src, dst, si, opts...); err != nil {
+	if err := writeSignedEntitySignatures(dst, si, opts...); err != nil {
 		return err
 	}
 
-	if err := writeSignedEntityAttestations(src, dst, si, opts...); err != nil {
+	if err := writeSignedEntityAttestations(dst, si, opts...); err != nil {
 		return err
 	}
 
-	if err := writeSignedEntityAttachments(src, dst, si, opts...); err != nil {
+	if err := writeSignedEntityAttachments(dst, si, opts...); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func writeSignedEntitySignatures(src, dst name.Reference, si oci.SignedEntity, opts ...Option) error {
+func writeSignedEntitySignatures(dst name.Reference, si oci.SignedEntity, opts ...Option) error {
 	repo := dst.Context()
 	o := makeOptions(repo, opts...)
 	// write the signatures
@@ -83,25 +81,30 @@ func writeSignedEntitySignatures(src, dst name.Reference, si oci.SignedEntity, o
 		}
 		return err
 	}
-	if sigs != nil { // will be nil if there are no associated signatures
-		sigsTag, err := SignatureTag(dst, opts...)
-		if err != nil {
-			return fmt.Errorf("sigs tag: %w", err)
-		}
-		srcSigsTag, err := SignatureTag(src, opts...)
-		if err != nil {
-			return fmt.Errorf("sigs tag: %w", err)
-		}
 
-		if err := remoteWriteIfExists(srcSigsTag, sigsTag, sigs, o.ROpt...); err != nil {
-			return err
-		}
+	if sigs == nil {
+		return nil
+	}
+
+	if sigsList, err := sigs.Get(); err != nil {
+		return err
+	} else if len(sigsList) == 0 {
+		return nil
+	}
+
+	sigsTag, err := SignatureTag(dst, opts...)
+	if err != nil {
+		return fmt.Errorf("sigs tag: %w", err)
+	}
+
+	if err := remoteWrite(sigsTag, sigs, o.ROpt...); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-func writeSignedEntityAttestations(src, dst name.Reference, si oci.SignedEntity, opts ...Option) error {
+func writeSignedEntityAttestations(dst name.Reference, si oci.SignedEntity, opts ...Option) error {
 	repo := dst.Context()
 	o := makeOptions(repo, opts...)
 	atts, err := si.Attestations()
@@ -111,24 +114,30 @@ func writeSignedEntityAttestations(src, dst name.Reference, si oci.SignedEntity,
 		}
 		return err
 	}
-	if atts != nil { // will be nil if there are no associated attestations
-		attsTag, err := AttestationTag(dst, opts...)
-		if err != nil {
-			return fmt.Errorf("sigs tag: %w", err)
-		}
-		srcAttsTag, err := AttestationTag(src, opts...)
-		if err != nil {
-			return fmt.Errorf("sigs tag: %w", err)
-		}
 
-		if err := remoteWriteIfExists(srcAttsTag, attsTag, atts, o.ROpt...); err != nil {
-			return err
-		}
+	if atts == nil {
+		return nil
 	}
+
+	if attsList, err := atts.Get(); err != nil {
+		return err
+	} else if len(attsList) == 0 {
+		return nil
+	}
+
+	attsTag, err := AttestationTag(dst, opts...)
+	if err != nil {
+		return fmt.Errorf("sigs tag: %w", err)
+	}
+
+	if err := remoteWrite(attsTag, atts, o.ROpt...); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func writeSignedEntityAttachments(src, dst name.Reference, si oci.SignedEntity, opts ...Option) error {
+func writeSignedEntityAttachments(dst name.Reference, si oci.SignedEntity, opts ...Option) error {
 	repo := dst.Context()
 	o := makeOptions(repo, opts...)
 	// write the attachments
@@ -145,43 +154,13 @@ func writeSignedEntityAttachments(src, dst name.Reference, si oci.SignedEntity, 
 		if err != nil {
 			return fmt.Errorf("sbom tag: %w", err)
 		}
-		srcSbomTag, err := SBOMTag(src, opts...)
-		if err != nil {
-			return fmt.Errorf("sbom tag: %w", err)
-		}
 
-		if err := remoteWriteIfExists(srcSbomTag, sbomTag, sboms, o.ROpt...); err != nil {
+		if err := remoteWrite(sbomTag, sboms, o.ROpt...); err != nil {
 			return err
 		}
+
 	}
 	return nil
-}
-
-func remoteWriteIfExists(src, dst name.Reference, img v1.Image, opts ...remote.Option) error {
-	if exist, err := imageExists(src, opts...); err != nil {
-		return err
-	} else if exist {
-		fmt.Println("writing image to ", dst.Name())
-		return remoteWrite(dst, img, opts...)
-	}
-	return nil
-}
-
-func imageExists(ref name.Reference, opts ...remote.Option) (bool, error) {
-	_, err := remote.Get(ref, opts...)
-	if err != nil {
-		var te *transport.Error
-		if errors.As(err, &te) && te.StatusCode == http.StatusNotFound {
-			// We do not treat 404s on the source image as errors because we are
-			// trying many flavors of tag (sig, sbom, att) and only a subset of
-			// these are likely to exist, especially when we're talking about a
-			// multi-arch image.
-			return false, nil
-		}
-		return false, err
-	}
-
-	return true, nil
 }
 
 // WriteSignedImageIndexImages writes the images within the image index

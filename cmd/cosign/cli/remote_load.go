@@ -85,7 +85,7 @@ func RemoteLoadCmd(ctx context.Context, opts options.RemoteLoadOptions, src, dst
 		fmt.Println("image has signature")
 	}
 
-	return remote.WriteSignedEntity(srcRef, dstRef, se, ociremoteOpts...)
+	return remote.WriteSignedEntity(dstRef, se, ociremoteOpts...)
 }
 
 func imageHasSignature(se oci.SignedEntity) (bool, error) {
