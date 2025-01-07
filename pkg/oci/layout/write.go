@@ -28,13 +28,6 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/oci"
 )
 
-const (
-	SignatureTagSuffix   = "sig"
-	SBOMTagSuffix        = "sbom"
-	AttestationTagSuffix = "att"
-	CustomTagPrefix      = ""
-)
-
 // WriteSignedImage writes the image and all related signatures, attestations and attachments
 func WriteSignedImage(path string, si oci.SignedImage, ref name.Reference) error {
 	layoutPath, err := layout.FromPath(path)
