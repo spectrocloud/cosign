@@ -19,7 +19,6 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/sigstore/cosign/v2/pkg/oci"
-	"github.com/sigstore/cosign/v2/pkg/oci/signed"
 )
 
 const (
@@ -44,6 +43,7 @@ func SignedImageIndex(path string) (oci.SignedImageIndex, error) {
 	}
 	return &index{
 		v1Index: ii,
+		path:    path,
 	}, nil
 }
 
@@ -53,32 +53,19 @@ type v1Index v1.ImageIndex
 
 type index struct {
 	v1Index
+	path string
 }
 
 var _ oci.SignedImageIndex = (*index)(nil)
 
 // Signatures implements oci.SignedImageIndex
 func (i *index) Signatures() (oci.Signatures, error) {
-	img, err := i.imageByAnnotation(SigsAnnotation)
-	if err != nil {
-		return nil, err
-	}
-	if img == nil {
-		return nil, nil
-	}
-	return &sigs{img}, nil
+	return signatures(i, i.path)
 }
 
 // Attestations implements oci.SignedImageIndex
 func (i *index) Attestations() (oci.Signatures, error) {
-	img, err := i.imageByAnnotation(AttsAnnotation)
-	if err != nil {
-		return nil, err
-	}
-	if img == nil {
-		return nil, nil
-	}
-	return &sigs{img}, nil
+	return attestations(i, i.path)
 }
 
 // Attestations implements oci.SignedImage
@@ -103,7 +90,10 @@ func (i *index) SignedImage(h v1.Hash) (oci.SignedImage, error) {
 	if img == nil {
 		return nil, nil
 	}
-	return signed.Image(img), nil
+	return &image{
+		Image: img,
+		path:  i.path,
+	}, nil
 }
 
 // imageByAnnotation searches through all manifests in the index.json
@@ -151,5 +141,6 @@ func (i *index) SignedImageIndex(h v1.Hash) (oci.SignedImageIndex, error) {
 	}
 	return &index{
 		v1Index: ii,
+		path:    i.path,
 	}, nil
 }
