@@ -116,13 +116,15 @@ func writeSignedEntity(path layout.Path, se oci.SignedEntity, ref name.Reference
 	if err != nil {
 		return nil // no sbom found
 	}
-	h, err := se.Digest()
-	if err != nil {
-		return fmt.Errorf("getting digest: %w", err)
-	}
-	tag := ref.Context().Tag(normalize(h, CustomTagPrefix, SBOMTagSuffix))
-	if err := appendImage(path, sboms, tag, SbomsAnnotation); err != nil {
-		return fmt.Errorf("appending attachments: %w", err)
+	if sboms != nil {
+		h, err := se.Digest()
+		if err != nil {
+			return fmt.Errorf("getting digest: %w", err)
+		}
+		tag := ref.Context().Tag(normalize(h, CustomTagPrefix, SBOMTagSuffix))
+		if err := appendImage(path, sboms, tag, SbomsAnnotation); err != nil {
+			return fmt.Errorf("appending attachments: %w", err)
+		}
 	}
 	return nil
 }
