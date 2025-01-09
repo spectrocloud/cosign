@@ -66,7 +66,7 @@ func SBOMCmd(
 	idx, isIndex := se.(oci.SignedImageIndex)
 
 	file, err := se.Attachment("sbom")
-	if errors.Is(err, ociremote.ErrImageNotFound) {
+	if errors.Is(err, ociremote.ErrImageNotFound) || (file == nil && err == nil) {
 		if !isIndex {
 			return nil, errors.New("no sbom attached to reference")
 		}

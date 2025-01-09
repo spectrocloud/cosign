@@ -103,7 +103,7 @@ func TreeCmd(ctx context.Context, regOpts options.RegistryOptions, imageRef stri
 	}
 
 	sbombs, err := simg.Attachment(ociremote.SBOMTagSuffix)
-	if err == nil {
+	if err == nil && sbombs != nil {
 		layers, err := sbombs.Layers()
 		if err != nil {
 			return err
