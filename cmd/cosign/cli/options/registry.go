@@ -133,7 +133,9 @@ func (o *RegistryOptions) GetRegistryClientOpts(ctx context.Context) []remote.Op
 	}
 
 	if o.AllowInsecure {
-		opts = append(opts, remote.WithTransport(&http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}})) // #nosec G402
+		tr := http.DefaultTransport.(*http.Transport).Clone()
+		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402
+		opts = append(opts, remote.WithTransport(tr))
 	}
 
 	// Reuse a remote.Pusher and a remote.Puller for all operations that use these opts.
