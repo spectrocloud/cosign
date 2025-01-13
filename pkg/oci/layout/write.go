@@ -145,9 +145,27 @@ func appendImage(path layout.Path, img v1.Image, ref name.Reference, annotation 
 		return fmt.Errorf("getting digest: %w", err)
 	}
 
-	return path.ReplaceImage(img, match.Digests(digest), layout.WithAnnotations(
-		map[string]string{KindAnnotation: annotation, ImageRefAnnotation: imageRef},
-	))
+	m, err := img.Manifest()
+	if err != nil {
+		return fmt.Errorf("getting manifest: %w", err)
+	}
+
+	var annotations map[string]string
+	if m != nil {
+		annotations = m.Annotations
+	}
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[KindAnnotation] = annotation
+	annotations[ImageRefAnnotation] = imageRef
+
+	return path.ReplaceImage(img,
+		match.Digests(digest),
+		layout.WithAnnotations(
+			annotations,
+		),
+	)
 }
 
 func getImageRef(ref name.Reference) (string, error) {
