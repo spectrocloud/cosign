@@ -18,6 +18,7 @@ package layout
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -68,9 +69,22 @@ func WriteSignedImageIndex(path string, si oci.SignedImageIndex, ref name.Refere
 		return fmt.Errorf("getting digest: %w", err)
 	}
 
-	if err := layoutPath.ReplaceIndex(si, match.Digests(digest), layout.WithAnnotations(
-		map[string]string{KindAnnotation: ImageIndexAnnotation, ImageRefAnnotation: imageRef},
-	)); err != nil {
+	m, err := si.IndexManifest()
+	if err != nil {
+		return fmt.Errorf("getting index manifest: %w", err)
+	}
+
+	var annotations map[string]string
+	if m != nil {
+		annotations = maps.Clone(m.Annotations)
+	}
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
+	annotations[KindAnnotation] = ImageIndexAnnotation
+	annotations[ImageRefAnnotation] = imageRef
+
+	if err := layoutPath.ReplaceIndex(si, match.Digests(digest), layout.WithAnnotations(annotations)); err != nil {
 		return fmt.Errorf("appending signed image index: %w", err)
 	}
 
