@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/match"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/sigstore/cosign/v2/pkg/oci"
 )
 
@@ -83,8 +84,10 @@ func WriteSignedImageIndex(path string, si oci.SignedImageIndex, ref name.Refere
 	}
 	annotations[KindAnnotation] = ImageIndexAnnotation
 	annotations[ImageRefAnnotation] = imageRef
+	ii := si.(v1.ImageIndex)
+	ii = mutate.Annotations(ii, annotations).(v1.ImageIndex)
 
-	if err := layoutPath.ReplaceIndex(si, match.Digests(digest), layout.WithAnnotations(annotations)); err != nil {
+	if err := layoutPath.ReplaceIndex(ii, match.Digests(digest), layout.WithAnnotations(annotations)); err != nil {
 		return fmt.Errorf("appending signed image index: %w", err)
 	}
 
@@ -173,6 +176,7 @@ func appendImage(path layout.Path, img v1.Image, ref name.Reference, annotation 
 	}
 	annotations[KindAnnotation] = annotation
 	annotations[ImageRefAnnotation] = imageRef
+	img = mutate.Annotations(img, annotations).(v1.Image)
 
 	return path.ReplaceImage(img,
 		match.Digests(digest),
