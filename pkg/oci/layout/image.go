@@ -10,15 +10,16 @@ import (
 
 var ErrImageNotFound = errors.New("image not found in registry")
 
+type v1Image v1.Image
 type image struct {
-	v1.Image
+	v1Image
 	path string
 }
 
 // The wrapped Image implements ConfigLayer, but the wrapping hides that from typechecks in pkg/v1/remote.
 // Make image explicitly implement ConfigLayer so that this returns a mountable config layer for pkg/v1/remote.
 func (i *image) ConfigLayer() (v1.Layer, error) {
-	return partial.ConfigLayer(i.Image)
+	return partial.ConfigLayer(i.v1Image)
 }
 
 var _ oci.SignedImage = (*image)(nil)
