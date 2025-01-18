@@ -91,7 +91,7 @@ func (i *index) SignedImage(h v1.Hash) (oci.SignedImage, error) {
 		return nil, nil
 	}
 	return &image{
-		Image: img,
+		v1Image: img,
 		path:  i.path,
 	}, nil
 }
