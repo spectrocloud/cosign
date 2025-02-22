@@ -74,9 +74,6 @@ func SignedEntity(ref name.Reference, options ...Option) (oci.SignedEntity, erro
 		return nil, err
 	}
 
-	// enable the progress logs to be printed to stdout
-	logs.Progress.SetOutput(os.Stdout)
-
 	switch got.MediaType {
 	case types.OCIImageIndex, types.DockerManifestList:
 		ii, err := got.ImageIndex()
