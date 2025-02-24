@@ -65,11 +65,6 @@ func WriteSignedImageIndex(path string, si oci.SignedImageIndex, ref name.Refere
 		return err // Return the error from getImageRef immediately.
 	}
 
-	digest, err := si.Digest()
-	if err != nil {
-		return fmt.Errorf("getting digest: %w", err)
-	}
-
 	m, err := si.IndexManifest()
 	if err != nil {
 		return fmt.Errorf("getting index manifest: %w", err)
@@ -87,7 +82,7 @@ func WriteSignedImageIndex(path string, si oci.SignedImageIndex, ref name.Refere
 	ii := si.(v1.ImageIndex)
 	ii = mutate.Annotations(ii, annotations).(v1.ImageIndex)
 
-	if err := layoutPath.ReplaceIndex(ii, match.Digests(digest), layout.WithAnnotations(annotations)); err != nil {
+	if err := layoutPath.ReplaceIndex(ii, match.Name(imageRef), layout.WithAnnotations(annotations)); err != nil {
 		return fmt.Errorf("appending signed image index: %w", err)
 	}
 
@@ -157,10 +152,6 @@ func appendImage(path layout.Path, img v1.Image, ref name.Reference, annotation 
 	if err != nil {
 		return err // Return the error from getImageRef immediately.
 	}
-	digest, err := img.Digest()
-	if err != nil {
-		return fmt.Errorf("getting digest: %w", err)
-	}
 
 	m, err := img.Manifest()
 	if err != nil {
@@ -179,7 +170,7 @@ func appendImage(path layout.Path, img v1.Image, ref name.Reference, annotation 
 	img = mutate.Annotations(img, annotations).(v1.Image)
 
 	return path.ReplaceImage(img,
-		match.Digests(digest),
+		match.Name(imageRef),
 		layout.WithAnnotations(
 			annotations,
 		),
