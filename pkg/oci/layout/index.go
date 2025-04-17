@@ -79,11 +79,8 @@ func (i *index) Attachment(name string) (oci.File, error) { //nolint: revive
 func (i *index) SignedImage(h v1.Hash) (oci.SignedImage, error) {
 	var img v1.Image
 	var err error
-	if h.String() == ":" {
-		img, err = i.imageByAnnotation(ImageAnnotation)
-	} else {
-		img, err = i.Image(h)
-	}
+
+	img, err = i.Image(h)
 	if err != nil {
 		return nil, err
 	}
@@ -92,47 +89,16 @@ func (i *index) SignedImage(h v1.Hash) (oci.SignedImage, error) {
 	}
 	return &image{
 		v1Image: img,
-		path:  i.path,
+		path:    i.path,
 	}, nil
-}
-
-// imageByAnnotation searches through all manifests in the index.json
-// and returns the image that has the matching annotation
-func (i *index) imageByAnnotation(annotation string) (v1.Image, error) {
-	manifest, err := i.IndexManifest()
-	if err != nil {
-		return nil, err
-	}
-	for _, m := range manifest.Manifests {
-		if val, ok := m.Annotations[KindAnnotation]; ok && val == annotation {
-			return i.Image(m.Digest)
-		}
-	}
-	return nil, nil
-}
-
-func (i *index) imageIndexByAnnotation(annotation string) (v1.ImageIndex, error) {
-	manifest, err := i.IndexManifest()
-	if err != nil {
-		return nil, err
-	}
-	for _, m := range manifest.Manifests {
-		if val, ok := m.Annotations[KindAnnotation]; ok && val == annotation {
-			return i.ImageIndex(m.Digest)
-		}
-	}
-	return nil, nil
 }
 
 // SignedImageIndex implements oci.SignedImageIndex
 func (i *index) SignedImageIndex(h v1.Hash) (oci.SignedImageIndex, error) {
 	var ii v1.ImageIndex
 	var err error
-	if h.String() == ":" {
-		ii, err = i.imageIndexByAnnotation(ImageIndexAnnotation)
-	} else {
-		ii, err = i.ImageIndex(h)
-	}
+
+	ii, err = i.ImageIndex(h)
 	if err != nil {
 		return nil, err
 	}
