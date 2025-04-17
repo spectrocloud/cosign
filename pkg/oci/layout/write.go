@@ -26,12 +26,11 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/match"
-	"github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/sigstore/cosign/v2/pkg/oci"
 )
 
 // WriteSignedImage writes the image and all related signatures, attestations and attachments
-func WriteSignedImage(path string, si oci.SignedImage, ref name.Reference) error {
+func WriteSignedImage(path string, si oci.SignedImage, ref name.Reference, extraAnnotations map[string]string) error {
 	layoutPath, err := layout.FromPath(path)
 	if os.IsNotExist(err) {
 		// If the layout doesn't exist, create a new one
@@ -41,15 +40,20 @@ func WriteSignedImage(path string, si oci.SignedImage, ref name.Reference) error
 		return err
 	}
 
+	if extraAnnotations == nil {
+		extraAnnotations = make(map[string]string)
+	}
+	extraAnnotations[KindAnnotation] = ImageAnnotation
+
 	// write the image
-	if err := appendImage(layoutPath, si, ref, ImageAnnotation); err != nil {
+	if err := appendImage(layoutPath, si, ref, extraAnnotations); err != nil {
 		return fmt.Errorf("appending signed image: %w", err)
 	}
 	return writeSignedEntity(layoutPath, si, ref)
 }
 
 // WriteSignedImageIndex writes the image index and all related signatures, attestations and attachments
-func WriteSignedImageIndex(path string, si oci.SignedImageIndex, ref name.Reference) error {
+func WriteSignedImageIndex(path string, si oci.SignedImageIndex, ref name.Reference, extraAnnotations map[string]string) error {
 	layoutPath, err := layout.FromPath(path)
 	if os.IsNotExist(err) {
 		// If the layout doesn't exist, create a new one
@@ -57,12 +61,6 @@ func WriteSignedImageIndex(path string, si oci.SignedImageIndex, ref name.Refere
 	}
 	if err != nil {
 		return err
-	}
-
-	// Append the image index
-	imageRef, err := getImageRef(ref)
-	if err != nil {
-		return err // Return the error from getImageRef immediately.
 	}
 
 	m, err := si.IndexManifest()
@@ -70,19 +68,22 @@ func WriteSignedImageIndex(path string, si oci.SignedImageIndex, ref name.Refere
 		return fmt.Errorf("getting index manifest: %w", err)
 	}
 
-	var annotations map[string]string
+	annotations := make(map[string]string)
 	if m != nil {
-		annotations = maps.Clone(m.Annotations)
+		maps.Copy(annotations, m.Annotations)
 	}
-	if annotations == nil {
-		annotations = make(map[string]string)
+
+	if extraAnnotations != nil {
+		maps.Copy(annotations, extraAnnotations)
 	}
 	annotations[KindAnnotation] = ImageIndexAnnotation
+	imageRef, err := getImageRef(ref)
+	if err != nil {
+		return err // Return the error from getImageRef immediately.
+	}
 	annotations[ImageRefAnnotation] = imageRef
-	ii := si.(v1.ImageIndex)
-	ii = mutate.Annotations(ii, annotations).(v1.ImageIndex)
 
-	if err := layoutPath.ReplaceIndex(ii, match.Name(imageRef), layout.WithAnnotations(annotations)); err != nil {
+	if err := layoutPath.ReplaceIndex(si, match.Name(imageRef), layout.WithAnnotations(annotations)); err != nil {
 		return fmt.Errorf("appending signed image index: %w", err)
 	}
 
@@ -101,7 +102,9 @@ func writeSignedEntity(path layout.Path, se oci.SignedEntity, ref name.Reference
 			return fmt.Errorf("getting digest: %w", err)
 		}
 		tag := ref.Context().Tag(normalize(h, CustomTagPrefix, SignatureTagSuffix))
-		if err := appendImage(path, sigs, tag, SigsAnnotation); err != nil {
+		if err := appendImage(path, sigs, tag, map[string]string{
+			KindAnnotation: SigsAnnotation,
+		}); err != nil {
 			return fmt.Errorf("appending signatures: %w", err)
 		}
 	}
@@ -117,7 +120,9 @@ func writeSignedEntity(path layout.Path, se oci.SignedEntity, ref name.Reference
 			return fmt.Errorf("getting digest: %w", err)
 		}
 		tag := ref.Context().Tag(normalize(h, CustomTagPrefix, AttestationTagSuffix))
-		if err := appendImage(path, atts, tag, AttsAnnotation); err != nil {
+		if err := appendImage(path, atts, tag, map[string]string{
+			KindAnnotation: AttsAnnotation,
+		}); err != nil {
 			return fmt.Errorf("appending atts: %w", err)
 		}
 	}
@@ -134,7 +139,9 @@ func writeSignedEntity(path layout.Path, se oci.SignedEntity, ref name.Reference
 			return fmt.Errorf("getting digest: %w", err)
 		}
 		tag := ref.Context().Tag(normalize(h, CustomTagPrefix, SBOMTagSuffix))
-		if err := appendImage(path, sboms, tag, SbomsAnnotation); err != nil {
+		if err := appendImage(path, sboms, tag, map[string]string{
+			KindAnnotation: SbomsAnnotation,
+		}); err != nil {
 			return fmt.Errorf("appending attachments: %w", err)
 		}
 	}
@@ -147,7 +154,7 @@ func isEmpty(s oci.Signatures) bool {
 	return ss == nil
 }
 
-func appendImage(path layout.Path, img v1.Image, ref name.Reference, annotation string) error {
+func appendImage(path layout.Path, img v1.Image, ref name.Reference, extraAnnotations map[string]string) error {
 	imageRef, err := getImageRef(ref)
 	if err != nil {
 		return err // Return the error from getImageRef immediately.
@@ -157,17 +164,14 @@ func appendImage(path layout.Path, img v1.Image, ref name.Reference, annotation 
 	if err != nil {
 		return fmt.Errorf("getting manifest: %w", err)
 	}
-
-	var annotations map[string]string
+	annotations := make(map[string]string)
 	if m != nil {
-		annotations = m.Annotations
+		maps.Copy(annotations, m.Annotations)
 	}
-	if annotations == nil {
-		annotations = make(map[string]string)
+	if extraAnnotations != nil {
+		maps.Copy(annotations, extraAnnotations)
 	}
-	annotations[KindAnnotation] = annotation
 	annotations[ImageRefAnnotation] = imageRef
-	img = mutate.Annotations(img, annotations).(v1.Image)
 
 	return path.ReplaceImage(img,
 		match.Name(imageRef),

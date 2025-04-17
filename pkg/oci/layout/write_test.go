@@ -41,7 +41,7 @@ func TestReadWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := WriteSignedImage(tmp, si, ref); err != nil {
+	if err := WriteSignedImage(tmp, si, ref, nil); err != nil {
 		t.Fatal(err)
 	}
 
