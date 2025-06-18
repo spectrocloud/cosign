@@ -253,14 +253,23 @@ func (l Path) RemoveDescriptors(matcher match.Matcher) error {
 	return l.WriteFile("index.json", rawIndex, os.ModePerm)
 }
 
-// WriteFile write a file with arbitrary data at an arbitrary location in a v1
-// layout. Used mostly internally to write files like "oci-layout" and
-// "index.json", also can be used to write other arbitrary files. Do *not* use
+// WriteFile writes data to a file in the Path. This function does *not* use
 // this to write blobs. Use only WriteBlob() for that.
 func (l Path) WriteFile(name string, data []byte, perm os.FileMode) error {
 	if err := os.MkdirAll(l.path(), os.ModePerm); err != nil && !os.IsExist(err) {
 		return err
 	}
+
+	// Use file locking for all files to prevent concurrent writes
+	lock := newFileLock(l, name)
+	if err := lock.Lock(); err != nil {
+		return fmt.Errorf("failed to acquire lock for %s: %w", name, err)
+	}
+	defer func() {
+		if err := lock.Unlock(); err != nil {
+			logs.Warn.Printf("failed to release lock for %s: %v", name, err)
+		}
+	}()
 
 	return os.WriteFile(l.path(name), data, perm)
 }
