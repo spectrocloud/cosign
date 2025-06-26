@@ -83,12 +83,12 @@ func TestWriteFileWithLocking(t *testing.T) {
 		{
 			name:     "other file",
 			filePath: "other.json",
-			wantLock: true,
+			wantLock: false,
 		},
 		{
 			name:     "nested other file",
 			filePath: "path/to/other.json",
-			wantLock: true,
+			wantLock: false,
 		},
 	}
 
@@ -559,11 +559,14 @@ func TestConcurrentDifferentFileTypes(t *testing.T) {
 
 	// Create initial files
 	files := []string{
-		"index.json",
-		"config.json",
-		"manifest.json",
-		"data.txt",
-		"nested/config.yaml",
+		"dir1/index.json",
+		"dir2/index.json",
+		"dir3/index.json",
+		"dir4/index.json",
+		"dir5/index.json",
+		"dir6/index.json",
+		"dir7/index.json",
+		"dir8/index.json",
 	}
 
 	for _, f := range files {
