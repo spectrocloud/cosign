@@ -370,15 +370,17 @@ func (l Path) WriteFile(name string, data []byte, perm os.FileMode) error {
 	}
 
 	// Use file locking for all files to prevent concurrent writes
-	lock := newFileLock(l, name)
-	if err := lock.Lock(); err != nil {
-		return fmt.Errorf("failed to acquire lock for %s: %w", name, err)
-	}
-	defer func() {
-		if err := lock.Unlock(); err != nil {
-			logs.Warn.Printf("failed to release lock for %s: %v", name, err)
+	if filepath.Base(name) == "index.json" {
+		lock := newFileLock(l, name)
+		if err := lock.Lock(); err != nil {
+			return fmt.Errorf("failed to acquire lock for %s: %w", name, err)
 		}
-	}()
+		defer func() {
+			if err := lock.Unlock(); err != nil {
+				logs.Warn.Printf("failed to release lock for %s: %v", name, err)
+			}
+		}()
+	}
 
 	return os.WriteFile(l.path(name), data, perm)
 }
