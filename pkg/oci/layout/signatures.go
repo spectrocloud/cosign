@@ -84,7 +84,6 @@ func Signatures(ref string, path string) (oci.Signatures, error) {
 				Image: i,
 			}, nil
 		}
-
 	}
 
 	return empty.Signatures(), nil

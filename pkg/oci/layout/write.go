@@ -40,6 +40,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var fileLocks map[string]sync.Locker = make(map[string]sync.Locker)
+
+func getFileMutex(path string) sync.Locker {
+	if _, ok := fileLocks[path]; !ok {
+		fileLocks[path] = &sync.Mutex{}
+	}
+	return fileLocks[path]
+}
+
 // WriteSignedImage writes the image and all related signatures, attestations and attachments
 func WriteSignedImage(path string, si oci.SignedImage, ref name.Reference, extraAnnotations map[string]string) error {
 	layoutPath, err := FromPath(path)
@@ -370,6 +379,7 @@ func (l Path) WriteFile(name string, data []byte, perm os.FileMode) error {
 	}
 
 	// Use file locking for all files to prevent concurrent writes
+	// This is to prevent concurrent writes from different processes.
 	if filepath.Base(name) == "index.json" {
 		lock := newFileLock(l, name)
 		if err := lock.Lock(); err != nil {
@@ -382,7 +392,30 @@ func (l Path) WriteFile(name string, data []byte, perm os.FileMode) error {
 		}()
 	}
 
-	return os.WriteFile(l.path(name), data, perm)
+	// This is to prevent concurrent writes from the same process.
+	mutex := getFileMutex(l.path(name))
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	tempFile, err := os.CreateTemp(filepath.Dir(l.path(name)), ".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := os.Remove(tempFile.Name()); err != nil {
+			logs.Warn.Printf("failed to remove temp file: %v", err)
+		}
+
+		if err := tempFile.Close(); err != nil {
+			logs.Warn.Printf("failed to close temp file: %v", err)
+		}
+	}()
+
+	if err := os.WriteFile(tempFile.Name(), data, perm); err != nil {
+		return err
+	}
+
+	return os.Rename(tempFile.Name(), l.path(name))
 }
 
 // WriteBlob copies a file to the blobs/ directory in the Path from the given ReadCloser at

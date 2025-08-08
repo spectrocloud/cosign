@@ -142,6 +142,11 @@ func (l Path) ImageIndex() (v1.ImageIndex, error) {
 		return nil, err
 	}
 
+	// If somehow the index.json is empty, return an empty index.
+	if len(rawIndex) == 0 {
+		rawIndex = []byte("{}")
+	}
+
 	idx := &layoutIndex{
 		mediaType: types.OCIImageIndex,
 		path:      l,

@@ -157,7 +157,6 @@ func writeSignedEntityAttachments(dst name.Reference, si oci.SignedEntity, opts 
 		if err := remoteWrite(sbomTag, sboms, o.ROpt...); err != nil {
 			return err
 		}
-
 	}
 	return nil
 }

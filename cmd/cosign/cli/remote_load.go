@@ -17,7 +17,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
@@ -26,7 +25,6 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/oci"
 	ociplatform "github.com/sigstore/cosign/v2/pkg/oci/platform"
 	"github.com/sigstore/cosign/v2/pkg/oci/remote"
-	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
 
 	"github.com/spf13/cobra"
 )
@@ -64,7 +62,7 @@ func RemoteLoadCmd(ctx context.Context, opts options.RemoteLoadOptions, src, dst
 		return err
 	}
 
-	se, err := ociremote.SignedEntity(srcRef, ociremoteOpts...)
+	se, err := remote.SignedEntity(srcRef, ociremoteOpts...)
 	if err != nil {
 		return err
 	}
@@ -81,8 +79,6 @@ func RemoteLoadCmd(ctx context.Context, opts options.RemoteLoadOptions, src, dst
 
 	if !signed {
 		return crane.Copy(src, dst)
-	} else {
-		fmt.Println("image has signature")
 	}
 
 	return remote.WriteSignedEntity(dstRef, se, ociremoteOpts...)
