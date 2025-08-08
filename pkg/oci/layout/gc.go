@@ -86,7 +86,8 @@ func (l Path) garbageCollectImageIndex(index v1.ImageIndex, blobsToKeep map[stri
 	blobsToKeep[h.String()] = true
 
 	for _, descriptor := range idxm.Manifests {
-		if descriptor.MediaType.IsImage() {
+		switch {
+		case descriptor.MediaType.IsImage():
 			img, err := index.Image(descriptor.Digest)
 			if err != nil {
 				return err
@@ -94,7 +95,7 @@ func (l Path) garbageCollectImageIndex(index v1.ImageIndex, blobsToKeep map[stri
 			if err := l.garbageCollectImage(img, blobsToKeep); err != nil {
 				return err
 			}
-		} else if descriptor.MediaType.IsIndex() {
+		case descriptor.MediaType.IsIndex():
 			idx, err := index.ImageIndex(descriptor.Digest)
 			if err != nil {
 				return err
@@ -102,7 +103,7 @@ func (l Path) garbageCollectImageIndex(index v1.ImageIndex, blobsToKeep map[stri
 			if err := l.garbageCollectImageIndex(idx, blobsToKeep); err != nil {
 				return err
 			}
-		} else {
+		default:
 			return fmt.Errorf("gc: unknown media type: %s", descriptor.MediaType)
 		}
 	}
