@@ -48,9 +48,10 @@ PH5bKk0M9ceasS7VwQIgMkxzlWr+m10OELtAbOlI8faN/5WFKm8m8rrwnhmHzjw=
 )
 
 func MockGetTufTargets(name string) ([]byte, error) {
-	if name == `tsa_leaf.crt.pem` {
+	switch name {
+	case `tsa_leaf.crt.pem`:
 		return []byte(testLeafCert), nil
-	} else if name == `tsa_root.crt.pem` {
+	case `tsa_root.crt.pem`:
 		return []byte(testRootCert), nil
 	}
 

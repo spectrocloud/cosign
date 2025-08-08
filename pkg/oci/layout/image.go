@@ -40,7 +40,7 @@ func (i *image) Attestations() (oci.Signatures, error) {
 }
 
 // Attestations implements oci.SignedImage
-func (i *image) Attachment(name string) (oci.File, error) {
+func (i *image) Attachment(_ string) (oci.File, error) {
 	return nil, nil
 }
 

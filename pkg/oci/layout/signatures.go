@@ -34,7 +34,7 @@ var _ oci.Signatures = (*sigs)(nil)
 
 // Get implements oci.Signatures
 func (s *sigs) Get() ([]oci.Signature, error) {
-	manifest, err := s.Image.Manifest()
+	manifest, err := s.Manifest()
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (s *sigs) Get() ([]oci.Signature, error) {
 	}
 	signatures := make([]oci.Signature, 0, numLayers)
 	for _, desc := range manifest.Layers {
-		l, err := s.Image.LayerByDigest(desc.Digest)
+		l, err := s.LayerByDigest(desc.Digest)
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +84,6 @@ func Signatures(ref string, path string) (oci.Signatures, error) {
 				Image: i,
 			}, nil
 		}
-
 	}
 
 	return empty.Signatures(), nil
