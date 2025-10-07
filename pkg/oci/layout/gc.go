@@ -18,10 +18,12 @@ package layout
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"go.uber.org/multierr"
 )
 
 // GarbageCollect removes unreferenced blobs from the oci-layout
@@ -41,7 +43,7 @@ func (l Path) GarbageCollect() ([]v1.Hash, error) {
 	blobsDir := l.path("blobs")
 	removedBlobs := []v1.Hash{}
 
-	err = filepath.WalkDir(blobsDir, func(path string, d fs.DirEntry, err error) error {
+	if err := filepath.WalkDir(blobsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -58,14 +60,16 @@ func (l Path) GarbageCollect() ([]v1.Hash, error) {
 		if present := blobsToKeep[hashString]; !present {
 			h, err := v1.NewHash(hashString)
 			if err != nil {
-				return err
+				// this means this is a invalid blob, we should just remove it
+				if err := os.Remove(path); err != nil {
+					return multierr.Append(err, fmt.Errorf("failed to remove invalid blob: %w", err))
+				}
+				return nil
 			}
 			removedBlobs = append(removedBlobs, h)
 		}
 		return nil
-	})
-
-	if err != nil {
+	}); err != nil {
 		return nil, err
 	}
 
