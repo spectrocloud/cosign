@@ -16,25 +16,31 @@
 package layout
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"os"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/layout"
+	"github.com/google/go-containerregistry/pkg/v1/partial"
+	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/sigstore/cosign/v2/pkg/oci"
-	"github.com/sigstore/cosign/v2/pkg/oci/signed"
 )
 
 const (
-	kindAnnotation       = "kind"
-	imageAnnotation      = "dev.cosignproject.cosign/image"
-	imageIndexAnnotation = "dev.cosignproject.cosign/imageIndex"
-	sigsAnnotation       = "dev.cosignproject.cosign/sigs"
-	attsAnnotation       = "dev.cosignproject.cosign/atts"
+	KindAnnotation       = "kind"
+	ImageAnnotation      = "dev.cosignproject.cosign/image"
+	ImageRefAnnotation   = "org.opencontainers.image.ref.name"
+	ImageIndexAnnotation = "dev.cosignproject.cosign/imageIndex"
+	SigsAnnotation       = "dev.cosignproject.cosign/sigs"
+	AttsAnnotation       = "dev.cosignproject.cosign/atts"
+	SbomsAnnotation      = "dev.cosignproject.cosign/sboms"
 )
 
 // SignedImageIndex provides access to a local index reference, and its signatures.
 func SignedImageIndex(path string) (oci.SignedImageIndex, error) {
-	p, err := layout.FromPath(path)
+	p, err := FromPath(path)
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +50,7 @@ func SignedImageIndex(path string) (oci.SignedImageIndex, error) {
 	}
 	return &index{
 		v1Index: ii,
+		path:    path,
 	}, nil
 }
 
@@ -53,37 +60,25 @@ type v1Index v1.ImageIndex
 
 type index struct {
 	v1Index
+	path string
 }
 
 var _ oci.SignedImageIndex = (*index)(nil)
 
 // Signatures implements oci.SignedImageIndex
 func (i *index) Signatures() (oci.Signatures, error) {
-	img, err := i.imageByAnnotation(sigsAnnotation)
-	if err != nil {
-		return nil, err
-	}
-	if img == nil {
-		return nil, nil
-	}
-	return &sigs{img}, nil
+	return signatures(i, i.path)
 }
 
 // Attestations implements oci.SignedImageIndex
 func (i *index) Attestations() (oci.Signatures, error) {
-	img, err := i.imageByAnnotation(attsAnnotation)
-	if err != nil {
-		return nil, err
-	}
-	if img == nil {
-		return nil, nil
-	}
-	return &sigs{img}, nil
+	return attestations(i, i.path)
 }
 
 // Attestations implements oci.SignedImage
 func (i *index) Attachment(name string) (oci.File, error) { //nolint: revive
-	return nil, fmt.Errorf("not yet implemented")
+	// return nil, fmt.Errorf("not yet implemented")
+	return nil, nil
 }
 
 // SignedImage implements oci.SignedImageIndex
@@ -91,57 +86,26 @@ func (i *index) Attachment(name string) (oci.File, error) { //nolint: revive
 func (i *index) SignedImage(h v1.Hash) (oci.SignedImage, error) {
 	var img v1.Image
 	var err error
-	if h.String() == ":" {
-		img, err = i.imageByAnnotation(imageAnnotation)
-	} else {
-		img, err = i.Image(h)
-	}
+
+	img, err = i.Image(h)
 	if err != nil {
 		return nil, err
 	}
 	if img == nil {
 		return nil, nil
 	}
-	return signed.Image(img), nil
-}
-
-// imageByAnnotation searches through all manifests in the index.json
-// and returns the image that has the matching annotation
-func (i *index) imageByAnnotation(annotation string) (v1.Image, error) {
-	manifest, err := i.IndexManifest()
-	if err != nil {
-		return nil, err
-	}
-	for _, m := range manifest.Manifests {
-		if val, ok := m.Annotations[kindAnnotation]; ok && val == annotation {
-			return i.Image(m.Digest)
-		}
-	}
-	return nil, nil
-}
-
-func (i *index) imageIndexByAnnotation(annotation string) (v1.ImageIndex, error) {
-	manifest, err := i.IndexManifest()
-	if err != nil {
-		return nil, err
-	}
-	for _, m := range manifest.Manifests {
-		if val, ok := m.Annotations[kindAnnotation]; ok && val == annotation {
-			return i.ImageIndex(m.Digest)
-		}
-	}
-	return nil, nil
+	return &image{
+		v1Image: img,
+		path:    i.path,
+	}, nil
 }
 
 // SignedImageIndex implements oci.SignedImageIndex
 func (i *index) SignedImageIndex(h v1.Hash) (oci.SignedImageIndex, error) {
 	var ii v1.ImageIndex
 	var err error
-	if h.String() == ":" {
-		ii, err = i.imageIndexByAnnotation(imageIndexAnnotation)
-	} else {
-		ii, err = i.ImageIndex(h)
-	}
+
+	ii, err = i.ImageIndex(h)
 	if err != nil {
 		return nil, err
 	}
@@ -150,5 +114,145 @@ func (i *index) SignedImageIndex(h v1.Hash) (oci.SignedImageIndex, error) {
 	}
 	return &index{
 		v1Index: ii,
+		path:    i.path,
 	}, nil
+}
+
+var _ v1.ImageIndex = (*layoutIndex)(nil)
+
+type layoutIndex struct {
+	mediaType types.MediaType
+	path      Path
+	rawIndex  []byte
+}
+
+// ImageIndexFromPath is a convenience function which constructs a Path and returns its v1.ImageIndex.
+func ImageIndexFromPath(path string) (v1.ImageIndex, error) {
+	lp, err := FromPath(path)
+	if err != nil {
+		return nil, err
+	}
+	return lp.ImageIndex()
+}
+
+// ImageIndex returns a v1.ImageIndex for the Path.
+func (l Path) ImageIndex() (v1.ImageIndex, error) {
+	rawIndex, err := os.ReadFile(l.path("index.json"))
+	if err != nil {
+		return nil, err
+	}
+
+	// If somehow the index.json is empty, return an empty index.
+	if len(rawIndex) == 0 {
+		rawIndex = []byte("{}")
+	}
+
+	idx := &layoutIndex{
+		mediaType: types.OCIImageIndex,
+		path:      l,
+		rawIndex:  rawIndex,
+	}
+
+	return idx, nil
+}
+
+func (i *layoutIndex) MediaType() (types.MediaType, error) {
+	return i.mediaType, nil
+}
+
+func (i *layoutIndex) Digest() (v1.Hash, error) {
+	return partial.Digest(i)
+}
+
+func (i *layoutIndex) Size() (int64, error) {
+	return partial.Size(i)
+}
+
+func (i *layoutIndex) IndexManifest() (*v1.IndexManifest, error) {
+	var index v1.IndexManifest
+	err := json.Unmarshal(i.rawIndex, &index)
+	return &index, err
+}
+
+func (i *layoutIndex) RawManifest() ([]byte, error) {
+	return i.rawIndex, nil
+}
+
+func (i *layoutIndex) Image(h v1.Hash) (v1.Image, error) {
+	// Look up the digest in our manifest first to return a better error.
+	desc, err := i.findDescriptor(h)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isExpectedMediaType(desc.MediaType, types.OCIManifestSchema1, types.DockerManifestSchema2) {
+		return nil, fmt.Errorf("unexpected media type for %v: %s", h, desc.MediaType)
+	}
+
+	img := &layoutImage{
+		path: i.path,
+		desc: *desc,
+	}
+	return partial.CompressedToImage(img)
+}
+
+func (i *layoutIndex) ImageIndex(h v1.Hash) (v1.ImageIndex, error) {
+	// Look up the digest in our manifest first to return a better error.
+	desc, err := i.findDescriptor(h)
+	if err != nil {
+		return nil, err
+	}
+
+	if !isExpectedMediaType(desc.MediaType, types.OCIImageIndex, types.DockerManifestList) {
+		return nil, fmt.Errorf("unexpected media type for %v: %s", h, desc.MediaType)
+	}
+
+	rawIndex, err := i.path.Bytes(h)
+	if err != nil {
+		return nil, err
+	}
+
+	return &layoutIndex{
+		mediaType: desc.MediaType,
+		path:      i.path,
+		rawIndex:  rawIndex,
+	}, nil
+}
+
+func (i *layoutIndex) Blob(h v1.Hash) (io.ReadCloser, error) {
+	return i.path.Blob(h)
+}
+
+func (i *layoutIndex) findDescriptor(h v1.Hash) (*v1.Descriptor, error) {
+	im, err := i.IndexManifest()
+	if err != nil {
+		return nil, err
+	}
+
+	if h == (v1.Hash{}) {
+		if len(im.Manifests) != 1 {
+			return nil, errors.New("oci layout must contain only a single image to be used with layout.Image")
+		}
+		return &(im.Manifests)[0], nil
+	}
+
+	for _, desc := range im.Manifests {
+		if desc.Digest == h {
+			return &desc, nil
+		}
+	}
+
+	return nil, fmt.Errorf("could not find descriptor in index: %s", h)
+}
+
+// TODO: Pull this out into methods on types.MediaType? e.g. instead, have:
+// * mt.IsIndex()
+// * mt.IsImage()
+func isExpectedMediaType(mt types.MediaType, expected ...types.MediaType) bool {
+	for _, allowed := range expected {
+		if mt == allowed {
+			return true
+		}
+	}
+	return false
 }

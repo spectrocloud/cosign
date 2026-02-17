@@ -33,13 +33,14 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/conv"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/in-toto/in-toto-golang/in_toto"
 	"github.com/secure-systems-lab/go-securesystemslib/dsse"
@@ -47,16 +48,17 @@ import (
 	"github.com/sigstore/cosign/v2/internal/pkg/cosign/rekor/mock"
 	"github.com/sigstore/cosign/v2/internal/pkg/cosign/tsa"
 	tsaMock "github.com/sigstore/cosign/v2/internal/pkg/cosign/tsa/mock"
+	"github.com/sigstore/cosign/v2/internal/test"
 	"github.com/sigstore/cosign/v2/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/v2/pkg/oci"
 	"github.com/sigstore/cosign/v2/pkg/oci/static"
 	"github.com/sigstore/cosign/v2/pkg/types"
-	"github.com/sigstore/cosign/v2/test"
 	"github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/rekor/pkg/generated/client/entries"
 	"github.com/sigstore/rekor/pkg/generated/models"
 	rtypes "github.com/sigstore/rekor/pkg/types"
 	hashedrekord_v001 "github.com/sigstore/rekor/pkg/types/hashedrekord/v0.0.1"
+	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/options"
@@ -729,6 +731,84 @@ func TestVerifyImageSignatureWithSigVerifierAndRekorTSA(t *testing.T) {
 	}
 }
 
+func TestVerifyImageSignatureWithMismatchedBundleAndTrustedRoot(t *testing.T) {
+	ctx := context.Background()
+	var ca root.FulcioCertificateAuthority
+	rootCert, rootKey, _ := test.GenerateRootCa()
+	ca.Root = rootCert
+	sv, _, err := signature.NewECDSASignerVerifier(elliptic.P256(), rand.Reader, crypto.SHA256)
+	if err != nil {
+		t.Fatalf("creating signer: %v", err)
+	}
+
+	leafCert, privKey, _ := test.GenerateLeafCert("subject@mail.com", "oidc-issuer", rootCert, rootKey)
+	pemLeaf := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leafCert.Raw})
+
+	rootPool := x509.NewCertPool()
+	rootPool.AddCert(rootCert)
+
+	payload := []byte{1, 2, 3, 4}
+	h := sha256.Sum256(payload)
+	signature1, _ := privKey.Sign(rand.Reader, h[:], crypto.SHA256)
+
+	// Create a fake bundle
+	pe, _ := proposedEntries(base64.StdEncoding.EncodeToString(signature1), payload, pemLeaf)
+	entry, _ := rtypes.UnmarshalEntry(pe[0])
+	leaf, _ := entry.Canonicalize(ctx)
+	rekorBundle := CreateTestBundle(ctx, t, sv, leaf)
+	pemBytes, _ := cryptoutils.MarshalPublicKeyToPEM(sv.Public())
+	rekorPubKeys := NewTrustedTransparencyLogPubKeys()
+	rekorPubKeys.AddTransparencyLogPubKey(pemBytes, tuf.Active)
+
+	tlogs := make(map[string]*root.TransparencyLog)
+	for k, v := range rekorPubKeys.Keys {
+		tlogs[k] = &root.TransparencyLog{PublicKey: v.PubKey, HashFunc: crypto.SHA256, ValidityPeriodStart: time.Now().Add(-1 * time.Minute)}
+	}
+
+	trustedRoot, err := root.NewTrustedRoot(root.TrustedRootMediaType01, []root.CertificateAuthority{&ca}, nil, nil, tlogs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a different bundle for a different signature
+	signature2, _ := privKey.Sign(rand.Reader, h[:], crypto.SHA256)
+	pe2, _ := proposedEntries(base64.StdEncoding.EncodeToString(signature2), payload, pemLeaf)
+	entry2, _ := rtypes.UnmarshalEntry(pe2[0])
+	leaf2, _ := entry2.Canonicalize(ctx)
+	rekorBundle2 := CreateTestBundle(ctx, t, sv, leaf2)
+
+	opts := []static.Option{static.WithCertChain(pemLeaf, []byte{}), static.WithBundle(rekorBundle2)}
+	// Create a signed entity for the original signature but with the wrong bundle for that signature
+	ociSig, _ := static.NewSignature(payload, base64.StdEncoding.EncodeToString(signature1), opts...)
+
+	_, err = VerifyImageSignature(context.TODO(), ociSig, v1.Hash{},
+		&CheckOpts{
+			RootCerts:       rootPool,
+			IgnoreSCT:       true,
+			Identities:      []Identity{{Subject: "subject@mail.com", Issuer: "oidc-issuer"}},
+			TrustedMaterial: trustedRoot})
+	if err == nil || !strings.Contains(err.Error(), "signature in bundle does not match signature being verified") {
+		t.Fatalf("expected error for mismatched signature and bundle, got %v", err)
+	}
+
+	// Create a signed entity with a different key from the bundle
+	leafCert2, _, _ := test.GenerateLeafCert("subject@mail.com", "oidc-issuer", rootCert, rootKey)
+	pemLeaf2 := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: leafCert2.Raw})
+
+	opts = []static.Option{static.WithCertChain(pemLeaf2, []byte{}), static.WithBundle(rekorBundle)}
+	ociSig, _ = static.NewSignature(payload, base64.StdEncoding.EncodeToString(signature1), opts...)
+
+	_, err = VerifyImageSignature(context.TODO(), ociSig, v1.Hash{},
+		&CheckOpts{
+			RootCerts:       rootPool,
+			IgnoreSCT:       true,
+			Identities:      []Identity{{Subject: "subject@mail.com", Issuer: "oidc-issuer"}},
+			TrustedMaterial: trustedRoot})
+	if err == nil || !strings.Contains(err.Error(), "error verifying bundle: comparing public key PEMs") {
+		t.Fatal(err)
+	}
+}
+
 func TestValidateAndUnpackCertSuccess(t *testing.T) {
 	subject := "email@email"
 	oidcIssuer := "https://accounts.google.com"
@@ -1372,6 +1452,77 @@ func TestValidateAndUnpackCertWithIntermediatesSuccess(t *testing.T) {
 	}
 }
 
+func TestValidateUnpackCertWithTrustedMaterial(t *testing.T) {
+	subject := "email@email"
+	oidcIssuer := "https://accounts.google.com"
+	var ca root.FulcioCertificateAuthority
+	rootCert, rootKey, _ := test.GenerateRootCa()
+	ca.Root = rootCert
+	leafCert, _, _ := test.GenerateLeafCert(subject, oidcIssuer, rootCert, rootKey)
+	trustedRoot, err := root.NewTrustedRoot(root.TrustedRootMediaType01, []root.CertificateAuthority{&ca}, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	co := &CheckOpts{
+		TrustedMaterial: trustedRoot,
+		IgnoreSCT:       true,
+		Identities:      []Identity{{Subject: subject, Issuer: oidcIssuer}},
+	}
+	_, err = ValidateAndUnpackCert(leafCert, co)
+	assert.NoError(t, err)
+}
+
+func TestValidateAndUnpackCertWithSCT(t *testing.T) {
+	chain, err := cryptoutils.UnmarshalCertificatesFromPEM([]byte(strings.Join([]string{testEmbeddedCertPEM, testRootCertPEM}, "\n")))
+	if err != nil {
+		t.Fatalf("error unmarshalling certificate chain: %v", err)
+	}
+
+	rootPool := x509.NewCertPool()
+	rootPool.AddCert(chain[1])
+
+	// Grab the CTLog public keys
+	pubKeys, err := GetCTLogPubs(context.Background())
+	if err != nil {
+		t.Fatalf("Failed to get CTLog public keys from TUF: %v", err)
+	}
+
+	co := &CheckOpts{
+		RootCerts: rootPool,
+		// explicitly set to false
+		IgnoreSCT:    false,
+		CTLogPubKeys: pubKeys,
+	}
+
+	// write SCT verification key to disk
+	tmpPrivFile, err := os.CreateTemp(t.TempDir(), "cosign_verify_sct_*.key")
+	if err != nil {
+		t.Fatalf("failed to create temp key file: %v", err)
+	}
+	defer tmpPrivFile.Close()
+	if _, err := tmpPrivFile.Write([]byte(testCTLogPublicKeyPEM)); err != nil {
+		t.Fatalf("failed to write key file: %v", err)
+	}
+	t.Setenv("SIGSTORE_CT_LOG_PUBLIC_KEY_FILE", tmpPrivFile.Name())
+
+	// Grab the CTLog public keys again so we get them from env.
+	co.CTLogPubKeys, err = GetCTLogPubs(context.Background())
+	if err != nil {
+		t.Fatalf("Failed to get CTLog public keys from TUF: %v", err)
+	}
+	_, err = ValidateAndUnpackCert(chain[0], co)
+	if err != nil {
+		t.Errorf("ValidateAndUnpackCert expected no error, got err = %v", err)
+	}
+
+	// validate again, explicitly setting ignore SCT to false
+	co.IgnoreSCT = false
+	_, err = ValidateAndUnpackCert(chain[0], co)
+	if err != nil {
+		t.Errorf("ValidateAndUnpackCert expected no error, got err = %v", err)
+	}
+}
+
 func TestCompareSigs(t *testing.T) {
 	// TODO(nsmith5): Add test cases for invalid signature, missing signature etc
 	tests := []struct {
@@ -1616,9 +1767,9 @@ func createRekorEntry(ctx context.Context, t *testing.T, logID string, signer si
 	integratedTime := time.Now().Unix()
 	logEntry := models.LogEntryAnon{
 		Body:           base64.StdEncoding.EncodeToString(canonicalEntry),
-		IntegratedTime: swag.Int64(integratedTime),
-		LogIndex:       swag.Int64(0),
-		LogID:          swag.String(logID),
+		IntegratedTime: conv.Pointer(integratedTime),
+		LogIndex:       conv.Pointer(int64(0)),
+		LogID:          conv.Pointer(logID),
 	}
 
 	// Canonicalize the log entry and sign it
@@ -1638,9 +1789,9 @@ func createRekorEntry(ctx context.Context, t *testing.T, logID string, signer si
 	logEntry.Verification = &models.LogEntryAnonVerification{
 		SignedEntryTimestamp: signedEntryTimestamp,
 		InclusionProof: &models.InclusionProof{
-			LogIndex: swag.Int64(0),
-			TreeSize: swag.Int64(1),
-			RootHash: swag.String(hex.EncodeToString(entryUUID)),
+			LogIndex: conv.Pointer(int64(0)),
+			TreeSize: conv.Pointer(int64(1)),
+			RootHash: conv.Pointer(hex.EncodeToString(entryUUID)),
 			Hashes:   []string{},
 		},
 	}

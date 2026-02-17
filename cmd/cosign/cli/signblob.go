@@ -16,12 +16,17 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/generate"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/sign"
+	"github.com/sigstore/cosign/v2/internal/ui"
+	"github.com/sigstore/cosign/v2/pkg/cosign"
+	"github.com/sigstore/cosign/v2/pkg/cosign/env"
+	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -68,6 +73,7 @@ func SignBlob() *cobra.Command {
 			if err != nil {
 				return err
 			}
+
 			ko := options.KeyOpts{
 				KeyRef:                         o.Key,
 				PassFunc:                       generate.GetPass,
@@ -93,6 +99,46 @@ func SignBlob() *cobra.Command {
 				TSAServerURL:                   o.TSAServerURL,
 				RFC3161TimestampPath:           o.RFC3161TimestampPath,
 				IssueCertificateForExistingKey: o.IssueCertificate,
+			}
+			// If a signing config is used, then service URLs cannot be specified
+			if (o.UseSigningConfig || o.SigningConfigPath != "") &&
+				((o.Rekor.URL != "" && o.Rekor.URL != options.DefaultRekorURL) ||
+					(o.Fulcio.URL != "" && o.Fulcio.URL != options.DefaultFulcioURL) ||
+					(o.OIDC.Issuer != "" && o.OIDC.Issuer != options.DefaultOIDCIssuerURL) ||
+					o.TSAServerURL != "") {
+				return fmt.Errorf("cannot specify service URLs and use signing config")
+			}
+			// Signing config requires a bundle as output for verification materials since sigstore-go is used
+			if (o.UseSigningConfig || o.SigningConfigPath != "") && o.BundlePath == "" {
+				return fmt.Errorf("must provide --bundle with --signing-config or --use-signing-config")
+			}
+			// Fetch a trusted root when:
+			// * requesting a certificate and no CT log key is provided to verify an SCT
+			// * using a signing config and signing using sigstore-go
+			if ((o.Key == "" || o.IssueCertificate) && env.Getenv(env.VariableSigstoreCTLogPublicKeyFile) == "") ||
+				(o.UseSigningConfig || o.SigningConfigPath != "") {
+				if o.TrustedRootPath != "" {
+					ko.TrustedMaterial, err = root.NewTrustedRootFromPath(o.TrustedRootPath)
+					if err != nil {
+						return fmt.Errorf("loading trusted root: %w", err)
+					}
+				} else {
+					ko.TrustedMaterial, err = cosign.TrustedRoot()
+					if err != nil {
+						ui.Warnf(context.Background(), "Could not fetch trusted_root.json from the TUF repository. Continuing with individual targets. Error from TUF: %v", err)
+					}
+				}
+			}
+			if o.UseSigningConfig {
+				ko.SigningConfig, err = cosign.SigningConfig()
+				if err != nil {
+					return fmt.Errorf("error getting signing config from TUF: %w", err)
+				}
+			} else if o.SigningConfigPath != "" {
+				ko.SigningConfig, err = root.NewSigningConfigFromPath(o.SigningConfigPath)
+				if err != nil {
+					return fmt.Errorf("error reading signing config from file: %w", err)
+				}
 			}
 
 			for _, blob := range args {

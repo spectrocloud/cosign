@@ -22,6 +22,8 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/oci"
 )
 
+var ErrRefNotMultiArch = fmt.Errorf("specified reference is not a multiarch image")
+
 type List []struct {
 	Hash     v1.Hash
 	Platform *v1.Platform
@@ -98,7 +100,7 @@ func SignedEntityForPlatform(se oci.SignedEntity, platform string) (oci.SignedEn
 
 	// We only allow --platform on multiarch indexes
 	if !isIndex {
-		return nil, fmt.Errorf("specified reference is not a multiarch image")
+		return se, ErrRefNotMultiArch
 	}
 
 	targetPlatform, err := v1.ParsePlatform(platform)

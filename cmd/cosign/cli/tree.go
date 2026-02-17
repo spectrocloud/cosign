@@ -20,13 +20,11 @@ import (
 	"fmt"
 	"os"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-
 	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/spf13/cobra"
-
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
+	"github.com/spf13/cobra"
 )
 
 func Tree() *cobra.Command {
@@ -39,7 +37,7 @@ func Tree() *cobra.Command {
 		Args:             cobra.ExactArgs(1),
 		PersistentPreRun: options.BindViper,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return TreeCmd(cmd.Context(), c.Registry, args[0])
+			return TreeCmd(cmd.Context(), c.Registry, c.RegistryExperimental, c.ExperimentalOCI11, args[0])
 		},
 	}
 
@@ -47,8 +45,15 @@ func Tree() *cobra.Command {
 	return cmd
 }
 
-func TreeCmd(ctx context.Context, regOpts options.RegistryOptions, imageRef string) error {
+type OCIRelationsKey struct {
+	artifactType   string
+	artifactDigest name.Digest
+}
+
+func TreeCmd(ctx context.Context, regOpts options.RegistryOptions, regExpOpts options.RegistryExperimentalOptions, experimentalOCI11 bool, imageRef string) error {
 	scsaMap := map[name.Tag][]v1.Layer{}
+	ociRelationsMap := map[OCIRelationsKey][]v1.Layer{}
+
 	ref, err := name.ParseReference(imageRef, regOpts.NameOptions()...)
 	if err != nil {
 		return err
@@ -65,6 +70,7 @@ func TreeCmd(ctx context.Context, regOpts options.RegistryOptions, imageRef stri
 		return err
 	}
 
+	// Handle the legacy mode first, always
 	attRef, err := ociremote.AttestationTag(ref, remoteOpts...)
 	if err != nil {
 		return err
@@ -103,7 +109,7 @@ func TreeCmd(ctx context.Context, regOpts options.RegistryOptions, imageRef stri
 	}
 
 	sbombs, err := simg.Attachment(ociremote.SBOMTagSuffix)
-	if err == nil {
+	if err == nil && sbombs != nil {
 		layers, err := sbombs.Layers()
 		if err != nil {
 			return err
@@ -113,8 +119,53 @@ func TreeCmd(ctx context.Context, regOpts options.RegistryOptions, imageRef stri
 		}
 	}
 
-	if len(scsaMap) == 0 {
-		fmt.Fprintf(os.Stdout, "No Supply Chain Security Related Artifacts artifacts found for image %s\n, start creating one with simply running"+
+	// Handle the experimental OCI 1.1 mode
+	if regExpOpts.RegistryReferrersMode == options.RegistryReferrersModeOCI11 || experimentalOCI11 {
+		// Handle OCI 1.1 mode
+		digest, ok := ref.(name.Digest)
+		if !ok {
+			var err error
+			digest, err = ociremote.ResolveDigest(ref, remoteOpts...)
+			if err != nil {
+				return fmt.Errorf("resolving digest: %w", err)
+			}
+		}
+
+		// Get all referrers
+		indexManifest, err := ociremote.Referrers(digest, "", remoteOpts...)
+		if err != nil {
+			return fmt.Errorf("getting referrers: %w", err)
+		}
+
+		// Group referrers by artifact type
+		for _, manifest := range indexManifest.Manifests {
+			if manifest.ArtifactType == "" {
+				continue
+			}
+
+			// Fetch the image for this artifact
+			artifactRef := ref.Context().Digest(manifest.Digest.String())
+			artifactImage, err := ociremote.SignedImage(artifactRef, remoteOpts...)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error fetching artifact %s: %v\n", artifactRef, err)
+				continue
+			}
+
+			// Get layers for this artifact
+			layers, err := artifactImage.Layers()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error fetching layers for artifact %s: %v\n", artifactRef, err)
+				continue
+			}
+
+			// Add to the map
+			key := OCIRelationsKey{manifest.ArtifactType, artifactRef}
+			ociRelationsMap[key] = append(ociRelationsMap[key], layers...)
+		}
+	}
+
+	if len(scsaMap) == 0 && len(ociRelationsMap) == 0 {
+		fmt.Fprintf(os.Stdout, "No Supply Chain Security Related Artifacts found for image %s,\n start creating one with simply running"+
 			"$ cosign sign <img>", ref.String())
 		return nil
 	}
@@ -130,6 +181,17 @@ func TreeCmd(ctx context.Context, regOpts options.RegistryOptions, imageRef stri
 		}
 
 		if err := printLayers(k); err != nil {
+			return err
+		}
+	}
+
+	for key, layers := range ociRelationsMap {
+		emoji := "🔗"
+
+		// TODO - We could apply different emojis here for different values of key.artifactType
+
+		fmt.Fprintf(os.Stdout, "└── %s %s artifacts via OCI referrer: %s\n", emoji, key.artifactType, key.artifactDigest)
+		if err := printLayers(layers); err != nil {
 			return err
 		}
 	}

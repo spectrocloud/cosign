@@ -28,16 +28,18 @@ import (
 	"strings"
 	"testing"
 
+	"errors"
+
 	"github.com/in-toto/in-toto-golang/in_toto"
-	"github.com/pkg/errors"
 	ssldsse "github.com/secure-systems-lab/go-securesystemslib/dsse"
 	"github.com/secure-systems-lab/go-securesystemslib/encrypted"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/generate"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
+	"github.com/sigstore/cosign/v2/internal/test"
 	"github.com/sigstore/cosign/v2/pkg/cosign"
-	"github.com/sigstore/cosign/v2/test"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/dsse"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestAttestBlobCmdLocalKeyAndSk verifies the AttestBlobCmd returns an error
@@ -305,4 +307,37 @@ func TestBadRekorEntryType(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStatementPath(t *testing.T) {
+	ctx := context.Background()
+	td := t.TempDir()
+
+	keys, _ := cosign.GenerateKeyPair(nil)
+	keyRef := writeFile(t, td, string(keys.PrivateBytes), "key.pem")
+
+	statement := `{
+		"_type": "https://in-toto.io/Statement/v1",
+		"subject": [
+			{
+				"name": "foo",
+				"digest": {
+					"sha256": "deadbeef"
+				}
+			}
+		],
+		"predicateType": "https://example.com/CustomPredicate/v1",
+		"predicate": {
+			"foo": "bar"
+		}
+	}`
+	statementPath := writeFile(t, td, statement, "statement.json")
+
+	at := AttestBlobCommand{
+		KeyOpts:        options.KeyOpts{KeyRef: keyRef},
+		StatementPath:  statementPath,
+		RekorEntryType: "dsse",
+	}
+	err := at.Exec(ctx, "")
+	assert.NoError(t, err)
 }

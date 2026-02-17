@@ -58,6 +58,8 @@ import (
 	"github.com/sigstore/cosign/v2/pkg/cosign/env"
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
 	sigs "github.com/sigstore/cosign/v2/pkg/signature"
+	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
+	"github.com/sigstore/sigstore/pkg/signature"
 )
 
 const (
@@ -256,7 +258,11 @@ var verifyOffline = func(keyRef, imageRef string, checkClaims bool, annotations 
 
 var ro = &options.RootOptions{Timeout: options.DefaultTimeout}
 
-func keypair(t *testing.T, td string) (*cosign.KeysBytes, string, string) {
+func keypairWithAlgorithm(t *testing.T, td string, publicKeyDetails v1.PublicKeyDetails) (*cosign.KeysBytes, string, string) {
+	algo, err := signature.GetAlgorithmDetails(publicKeyDetails)
+	if err != nil {
+		t.Fatal(err)
+	}
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -267,7 +273,7 @@ func keypair(t *testing.T, td string) (*cosign.KeysBytes, string, string) {
 	defer func() {
 		_ = os.Chdir(wd)
 	}()
-	keys, err := cosign.GenerateKeyPair(passFunc)
+	keys, err := cosign.GenerateKeyPairWithAlgorithm(&algo, passFunc)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,6 +288,10 @@ func keypair(t *testing.T, td string) (*cosign.KeysBytes, string, string) {
 		t.Fatal(err)
 	}
 	return keys, privKeyPath, pubKeyPath
+}
+
+func keypair(t *testing.T, td string) (*cosign.KeysBytes, string, string) {
+	return keypairWithAlgorithm(t, td, v1.PublicKeyDetails_PKIX_ECDSA_P256_SHA_256)
 }
 
 // convert the given ecdsa.PrivateKey to a PEM encoded string, import into sigstore format,
@@ -423,7 +433,7 @@ func mkimage(t *testing.T, n string) (name.Reference, *remote.Descriptor, func()
 
 	cleanup := func() {
 		_ = remote.Delete(ref, regClientOpts...)
-		ref, _ := ociremote.SignatureTag(ref.Context().Digest(remoteImage.Descriptor.Digest.String()), ociremote.WithRemoteOptions(regClientOpts...))
+		ref, _ := ociremote.SignatureTag(ref.Context().Digest(remoteImage.Digest.String()), ociremote.WithRemoteOptions(regClientOpts...))
 		_ = remote.Delete(ref, regClientOpts...)
 	}
 	return ref, remoteImage, cleanup
@@ -452,7 +462,7 @@ func mkimageindex(t *testing.T, n string) (name.Reference, *remote.Descriptor, f
 
 	cleanup := func() {
 		_ = remote.Delete(ref, regClientOpts...)
-		ref, _ := ociremote.SignatureTag(ref.Context().Digest(remoteIndex.Descriptor.Digest.String()), ociremote.WithRemoteOptions(regClientOpts...))
+		ref, _ := ociremote.SignatureTag(ref.Context().Digest(remoteIndex.Digest.String()), ociremote.WithRemoteOptions(regClientOpts...))
 		_ = remote.Delete(ref, regClientOpts...)
 	}
 	return ref, remoteIndex, cleanup
@@ -519,21 +529,48 @@ func setLocalEnv(t *testing.T, dir string) error {
 	return nil
 }
 
-// downloadAndSetEnv fetches a URL and sets the given environment variable to point to the downloaded file path.
-func downloadAndSetEnv(t *testing.T, url, envVar, dir string) error {
+// copyFile copies a file from a source to a destination.
+func copyFile(src, dst string) error {
+	f, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("error opening source file: %w", err)
+	}
+	defer f.Close()
+	cp, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("error creating destination file: %w", err)
+	}
+	defer cp.Close()
+	_, err = io.Copy(cp, f)
+	if err != nil {
+		return fmt.Errorf("error copying file: %w", err)
+	}
+	return nil
+}
+
+// downloadFile fetches a URL and stores it at the given file path.
+func downloadFile(url string, fp *os.File) error {
 	resp, err := http.Get(url) //nolint: gosec
 	if err != nil {
 		return fmt.Errorf("error downloading file: %w", err)
 	}
 	defer resp.Body.Close()
+	_, err = io.Copy(fp, resp.Body)
+	if err != nil {
+		return fmt.Errorf("error writing to file: %w", err)
+	}
+	return nil
+}
+
+// downloadAndSetEnv fetches a URL and sets the given environment variable to point to the downloaded file path.
+func downloadAndSetEnv(t *testing.T, url, envVar, dir string) error {
 	f, err := os.CreateTemp(dir, "")
 	if err != nil {
 		return fmt.Errorf("error creating temp file: %w", err)
 	}
-	defer f.Close()
-	_, err = io.Copy(f, resp.Body)
+	err = downloadFile(url, f)
 	if err != nil {
-		return fmt.Errorf("error writing to file: %w", err)
+		return fmt.Errorf("error downloading file: %w", err)
 	}
 	t.Setenv(envVar, f.Name())
 	return nil

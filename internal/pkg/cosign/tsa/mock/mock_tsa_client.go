@@ -20,15 +20,14 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/asn1"
+	"fmt"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/digitorus/timestamp"
 	"github.com/sigstore/cosign/v2/internal/pkg/cosign/tsa/client"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
-	"github.com/sigstore/timestamp-authority/pkg/signer"
+	"github.com/sigstore/timestamp-authority/v2/pkg/signer"
 )
 
 // TSAClient creates RFC3161 timestamps and implements client.TimestampAuthority.
@@ -65,7 +64,7 @@ func NewTSAClient(o TSAClientOptions) (*TSAClient, error) {
 	}
 	certChain, err := signer.NewTimestampingCertWithChain(sv)
 	if err != nil {
-		return nil, errors.Wrap(err, "generating timestamping cert chain")
+		return nil, fmt.Errorf("generating timestamping cert chain: %w", err)
 	}
 
 	return &TSAClient{

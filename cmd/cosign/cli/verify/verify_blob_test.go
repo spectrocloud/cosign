@@ -37,14 +37,14 @@ import (
 
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-openapi/runtime"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/conv"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	"github.com/sigstore/cosign/v2/internal/pkg/cosign/tsa/mock"
+	"github.com/sigstore/cosign/v2/internal/test"
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	"github.com/sigstore/cosign/v2/pkg/cosign/bundle"
 	sigs "github.com/sigstore/cosign/v2/pkg/signature"
 	ctypes "github.com/sigstore/cosign/v2/pkg/types"
-	"github.com/sigstore/cosign/v2/test"
 	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
 	protocommon "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/rekor/pkg/generated/models"
@@ -327,7 +327,7 @@ func TestVerifyBlob(t *testing.T) {
 		{
 			name:           "valid signature with public key - new bundle",
 			blob:           blobBytes,
-			signature:      blobSignature,
+			signature:      "",
 			key:            pubKeyBytes,
 			bundlePath:     makeLocalNewBundle(t, []byte(blobSignature), sha256.Sum256(blobBytes)),
 			newBundle:      true,
@@ -337,12 +337,12 @@ func TestVerifyBlob(t *testing.T) {
 		{
 			name:           "invalid signature with public key - new bundle",
 			blob:           blobBytes,
-			signature:      otherSignature,
+			signature:      "",
 			key:            pubKeyBytes,
-			bundlePath:     makeLocalNewBundle(t, []byte(blobSignature), sha256.Sum256(blobBytes)),
+			bundlePath:     makeLocalNewBundle(t, []byte(otherSignature), sha256.Sum256(blobBytes)),
 			newBundle:      true,
 			skipTlogVerify: true,
-			shouldErr:      false,
+			shouldErr:      true,
 		},
 		{
 			name:      "invalid signature with public key",
@@ -619,12 +619,11 @@ func TestVerifyBlob(t *testing.T) {
 			}
 			if tt.newBundle {
 				cmd.TrustedRootPath = writeTrustedRootFile(t, td, "{\"mediaType\":\"application/vnd.dev.sigstore.trustedroot+json;version=0.1\"}")
-				cmd.KeyOpts.RekorURL = ""
-				cmd.KeyOpts.RFC3161TimestampPath = ""
-				cmd.KeyOpts.TSACertChainPath = ""
+				cmd.RekorURL = ""
+				cmd.RFC3161TimestampPath = ""
+				cmd.TSACertChainPath = ""
 				cmd.CertChain = ""
 			}
-
 			err := cmd.Exec(context.Background(), blobPath)
 			if (err != nil) != tt.shouldErr {
 				t.Fatalf("verifyBlob()= %s, expected shouldErr=%t ", err, tt.shouldErr)
@@ -702,9 +701,9 @@ func makeRekorEntry(t *testing.T, rekorSigner signature.ECDSASignerVerifier,
 	}
 	e := models.LogEntryAnon{
 		Body:           base64.StdEncoding.EncodeToString(leaf),
-		IntegratedTime: swag.Int64(integratedTime.Unix()),
-		LogIndex:       swag.Int64(0),
-		LogID:          swag.String(logID),
+		IntegratedTime: conv.Pointer(integratedTime.Unix()),
+		LogIndex:       conv.Pointer(int64(0)),
+		LogID:          conv.Pointer(logID),
 	}
 	// Marshal payload, sign, and set SET in Bundle
 	jsonPayload, err := json.Marshal(e)
@@ -724,9 +723,9 @@ func makeRekorEntry(t *testing.T, rekorSigner signature.ECDSASignerVerifier,
 	e.Verification = &models.LogEntryAnonVerification{
 		SignedEntryTimestamp: bundleSig,
 		InclusionProof: &models.InclusionProof{
-			LogIndex: swag.Int64(0),
-			TreeSize: swag.Int64(1),
-			RootHash: swag.String(hex.EncodeToString(uuid)),
+			LogIndex: conv.Pointer(int64(0)),
+			TreeSize: conv.Pointer(int64(1)),
+			RootHash: conv.Pointer(hex.EncodeToString(uuid)),
 			Hashes:   []string{},
 		},
 	}
@@ -820,6 +819,7 @@ func makeLocalNewBundle(t *testing.T, sig []byte, digest [32]byte) string {
 }
 
 func TestVerifyBlobCmdWithBundle(t *testing.T) {
+	t.Setenv("TUF_ROOT", t.TempDir())
 	keyless := newKeylessStack(t)
 	defer os.RemoveAll(keyless.td)
 
@@ -1333,6 +1333,7 @@ func TestVerifyBlobCmdWithBundle(t *testing.T) {
 }
 
 func TestVerifyBlobCmdInvalidRootCA(t *testing.T) {
+	t.Setenv("TUF_ROOT", t.TempDir())
 	keyless := newKeylessStack(t)
 	defer os.RemoveAll(keyless.td)
 

@@ -39,11 +39,18 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          go-version: '1.22'
+          persist-credentials: false
+
+      - name: Extract version of Go to use
+        run: echo "GOVERSION=$(awk -F'[:@]' '/FROM golang/{print $2; exit}' Dockerfile)" >> $GITHUB_ENV
+
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '${{ env.GOVERSION }}'
           check-latest: true
+          cache: false
 
       - name: Run cross platform e2e tests
         run: go test -tags=e2e,cross -v ./test/...
@@ -52,11 +59,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          go-version: '1.22'
+          persist-credentials: false
+
+      - name: Extract version of Go to use
+        run: echo "GOVERSION=$(awk -F'[:@]' '/FROM golang/{print $2; exit}' Dockerfile)" >> $GITHUB_ENV
+
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '${{ env.GOVERSION }}'
           check-latest: true
+          cache: false
 
       - name: Run pkcs11 end-to-end tests
         shell: bash
@@ -82,18 +96,24 @@ jobs:
       VAULT_TOKEN: "root"
       VAULT_ADDR: "http://localhost:8200"
       COSIGN_YES: "true"
-      SCAFFOLDING_RELEASE_VERSION: "v0.7.5"
+      SCAFFOLDING_RELEASE_VERSION: "v0.7.24"
     steps:
       - name: Checkout
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
 
       - name: setup vault
-        uses: cpanato/vault-installer@892767a16fcd6afa5c4cceb557a6aacb73427ebb # v1.1.0
+        uses: cpanato/vault-installer@e7c1d664fa15219e89e43739e39a9df11ba00849 # v1.2.0
 
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      - name: Extract version of Go to use
+        run: echo "GOVERSION=$(awk -F'[:@]' '/FROM golang/{print $2; exit}' Dockerfile)" >> $GITHUB_ENV
+
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: '1.22'
+          go-version: '${{ env.GOVERSION }}'
           check-latest: true
+          cache: false
 
       - uses: imjasonh/setup-crane@31b88efe9de28ae0ffa220711af4b60be9435f6e # v0.4
 
@@ -112,17 +132,24 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      SCAFFOLDING_RELEASE_VERSION: "v0.7.5"
+      SCAFFOLDING_RELEASE_VERSION: "v0.7.24"
 
     steps:
-    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-    - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+    - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       with:
-        go-version: '1.22'
+        persist-credentials: false
+
+    - name: Extract version of Go to use
+      run: echo "GOVERSION=$(awk -F'[:@]' '/FROM golang/{print $2; exit}' Dockerfile)" >> $GITHUB_ENV
+
+    - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+      with:
+        go-version: '${{ env.GOVERSION }}'
         check-latest: true
+        cache: false
 
     - name: Setup mirror
-      uses: chainguard-dev/actions/setup-mirror@main
+      uses: chainguard-dev/actions/setup-mirror@f632aec66edeebe245ad686a33a0c0a2160cac31 # v1.4.14
       with:
         mirror: mirror.gcr.io
 
@@ -212,4 +239,4 @@ jobs:
 
     - name: Collect diagnostics
       if: ${{ failure() }}
-      uses: chainguard-dev/actions/kind-diag@84c993eaf02da1c325854fb272a4df9184bd80fc # main
+      uses: chainguard-dev/actions/kind-diag@f632aec66edeebe245ad686a33a0c0a2160cac31 # v1.4.14

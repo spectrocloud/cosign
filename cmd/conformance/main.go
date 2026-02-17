@@ -15,9 +15,6 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/pem"
 	"fmt"
 	"log"
 	"os"
@@ -25,25 +22,19 @@ import (
 	"path/filepath"
 	"strings"
 
-	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
-	protocommon "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore-go/pkg/bundle"
-	"google.golang.org/protobuf/encoding/protojson"
 )
 
 var bundlePath *string
-var certPath *string
 var certOIDC *string
 var certSAN *string
 var identityToken *string
-var signaturePath *string
 var trustedRootPath *string
+var signingConfigPath *string
 
 func usage() {
 	fmt.Println("Usage:")
-	fmt.Printf("\t%s sign --identity-token TOKEN --signature FILE --certificate FILE FILE\n", os.Args[0])
-	fmt.Printf("\t%s sign-bundle --identity-token TOKEN --bundle FILE FILE\n", os.Args[0])
-	fmt.Printf("\t%s verify --signature FILE --certificate FILE --certificate-identity IDENTITY --certificate-oidc-issuer URL [--trusted-root FILE] FILE\n", os.Args[0])
+	fmt.Printf("\t%s sign-bundle --identity-token TOKEN [--signing-config FILE] [--trusted-root FILE] --bundle FILE FILE\n", os.Args[0])
 	fmt.Printf("\t%s verify-bundle --bundle FILE --certificate-identity IDENTITY --certificate-oidc-issuer URL [--trusted-root FILE] FILE\n", os.Args[0])
 }
 
@@ -59,9 +50,6 @@ func parseArgs() {
 		case "--bundle":
 			bundlePath = &os.Args[i+1]
 			i += 2
-		case "--certificate":
-			certPath = &os.Args[i+1]
-			i += 2
 		case "--certificate-oidc-issuer":
 			certOIDC = &os.Args[i+1]
 			i += 2
@@ -71,11 +59,11 @@ func parseArgs() {
 		case "--identity-token":
 			identityToken = &os.Args[i+1]
 			i += 2
-		case "--signature":
-			signaturePath = &os.Args[i+1]
-			i += 2
 		case "--trusted-root":
 			trustedRootPath = &os.Args[i+1]
+			i += 2
+		case "--signing-config":
+			signingConfigPath = &os.Args[i+1]
 			i += 2
 		default:
 			i++
@@ -94,100 +82,9 @@ func main() {
 	args := []string{}
 
 	switch os.Args[1] {
-	case "sign":
-		args = append(args, "sign-blob")
-		if signaturePath != nil {
-			args = append(args, "--output-signature", *signaturePath)
-		}
-		if certPath != nil {
-			args = append(args, "--output-certificate", *certPath)
-		}
-		args = append(args, "-y")
-
 	case "sign-bundle":
 		args = append(args, "sign-blob")
 		args = append(args, "-y")
-
-	case "verify":
-		args = append(args, "verify-blob")
-
-		// TODO: for now, we handle `verify` by constructing a bundle
-		// (see https://github.com/sigstore/cosign/issues/3700)
-		//
-		// Today cosign only supports `--trusted-root` with the new bundle
-		// format. When cosign supports `--trusted-root` with detached signed
-		// material, we can supply this content with `--certificate`
-		// and `--signature` instead.
-		fileBytes, err := os.ReadFile(os.Args[len(os.Args)-1])
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		fileDigest := sha256.Sum256(fileBytes)
-
-		pb := protobundle.Bundle{
-			MediaType: "application/vnd.dev.sigstore.bundle+json;version=0.1",
-		}
-
-		if signaturePath != nil {
-			sig, err := os.ReadFile(*signaturePath)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			sigBytes, err := base64.StdEncoding.DecodeString(string(sig))
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			pb.Content = &protobundle.Bundle_MessageSignature{
-				MessageSignature: &protocommon.MessageSignature{
-					MessageDigest: &protocommon.HashOutput{
-						Algorithm: protocommon.HashAlgorithm_SHA2_256,
-						Digest:    fileDigest[:],
-					},
-					Signature: sigBytes,
-				},
-			}
-		}
-		if certPath != nil {
-			cert, err := os.ReadFile(*certPath)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			pemCert, _ := pem.Decode(cert)
-			if pemCert == nil {
-				log.Fatalf("unable to load cerficate from %s", *certPath)
-			}
-
-			signingCert := protocommon.X509Certificate{
-				RawBytes: pemCert.Bytes,
-			}
-
-			pb.VerificationMaterial = &protobundle.VerificationMaterial{
-				Content: &protobundle.VerificationMaterial_X509CertificateChain{
-					X509CertificateChain: &protocommon.X509CertificateChain{
-						Certificates: []*protocommon.X509Certificate{&signingCert},
-					},
-				},
-			}
-		}
-
-		bundleFile, err := os.CreateTemp(os.TempDir(), "bundle.sigstore.json")
-		if err != nil {
-			log.Fatal(err)
-		}
-		bundleFileName := bundleFile.Name()
-		pbBytes, err := protojson.Marshal(&pb)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if err := os.WriteFile(bundleFileName, pbBytes, 0600); err != nil {
-			log.Fatal(err)
-		}
-		bundlePath = &bundleFileName
-		args = append(args, "--insecure-ignore-tlog")
 
 	case "verify-bundle":
 		args = append(args, "verify-blob")
@@ -228,34 +125,26 @@ func main() {
 	if trustedRootPath != nil {
 		args = append(args, "--trusted-root", *trustedRootPath)
 	}
+	if signingConfigPath != nil {
+		args = append(args, "--signing-config", *signingConfigPath)
+	}
 	args = append(args, os.Args[len(os.Args)-1])
 
 	dir := filepath.Dir(os.Args[0])
+	initCmd := exec.Command(filepath.Join(dir, "cosign"), "initialize") // #nosec G204
+	err := initCmd.Run()
+	if err != nil {
+		log.Fatal(err)
+	}
 	cmd := exec.Command(filepath.Join(dir, "cosign"), args...) // #nosec G204
 	var out strings.Builder
 	cmd.Stdout = &out
 	cmd.Stderr = &out
-	err := cmd.Run()
+	err = cmd.Run()
 
 	fmt.Println(out.String())
 
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	if os.Args[1] == "sign" && certPath != nil {
-		// We want the signature to be base64 encoded, but not the certificate
-		// So base64 decode the certificate
-		cert, err := os.ReadFile(*certPath)
-		if err != nil {
-			log.Fatal(err)
-		}
-		certB64Decode, err := base64.StdEncoding.DecodeString(string(cert))
-		if err != nil {
-			log.Fatal(err)
-		}
-		if err := os.WriteFile(*certPath, certB64Decode, 0600); err != nil {
-			log.Fatal(err)
-		}
 	}
 }

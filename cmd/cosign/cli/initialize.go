@@ -17,9 +17,8 @@ package cli
 
 import (
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/initialize"
-	"github.com/spf13/cobra"
-
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
+	"github.com/spf13/cobra"
 )
 
 func Initialize() *cobra.Command {
@@ -41,19 +40,22 @@ Any updated TUF repository will be written to $HOME/.sigstore/root/.
 
 Trusted keys and certificate used in cosign verification (e.g. verifying Fulcio issued certificates
 with Fulcio root CA) are pulled form the trusted metadata.`,
-		Example: `cosign initialize -mirror <url> -out <file>
+		Example: `cosign initialize --mirror <url> --out <file>
 
 # initialize root with distributed root keys, default mirror, and default out path.
 cosign initialize
 
 # initialize with an out-of-band root key file, using the default mirror.
-cosign initialize -root <url>
+cosign initialize --root <url>
 
 # initialize with an out-of-band root key file and custom repository mirror.
-cosign initialize -mirror <url> -root <url>`,
+cosign initialize --mirror <url> --root <url>
+
+# initialize with an out-of-band root key file and custom repository mirror while verifying root checksum.
+cosign initialize --mirror <url> --root <url> --root-checksum <sha256>`,
 		PersistentPreRun: options.BindViper,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return initialize.DoInitialize(cmd.Context(), o.Root, o.Mirror)
+			return initialize.DoInitializeWithRootChecksum(cmd.Context(), o.Root, o.Mirror, o.RootChecksum)
 		},
 	}
 

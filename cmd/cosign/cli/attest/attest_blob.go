@@ -18,11 +18,10 @@ import (
 	"bytes"
 	"context"
 	"crypto"
-	"crypto/sha256"
-	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -31,22 +30,21 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-	"github.com/secure-systems-lab/go-securesystemslib/dsse"
-	"google.golang.org/protobuf/encoding/protojson"
-
+	intotov1 "github.com/in-toto/attestation/go/v1"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/rekor"
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/sign"
+	cosign_sign "github.com/sigstore/cosign/v2/cmd/cosign/cli/sign"
+	"github.com/sigstore/cosign/v2/internal/auth"
+	"github.com/sigstore/cosign/v2/internal/key"
 	"github.com/sigstore/cosign/v2/internal/pkg/cosign/tsa"
-	"github.com/sigstore/cosign/v2/internal/pkg/cosign/tsa/client"
+	tsaclient "github.com/sigstore/cosign/v2/internal/pkg/cosign/tsa/client"
+	"github.com/sigstore/cosign/v2/internal/ui"
 	"github.com/sigstore/cosign/v2/pkg/cosign"
 	"github.com/sigstore/cosign/v2/pkg/cosign/attestation"
 	cbundle "github.com/sigstore/cosign/v2/pkg/cosign/bundle"
 	"github.com/sigstore/cosign/v2/pkg/types"
-	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
-	protodsse "github.com/sigstore/protobuf-specs/gen/pb-go/dsse"
 	"github.com/sigstore/rekor/pkg/generated/models"
+	"github.com/sigstore/sigstore-go/pkg/sign"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 	sigstoredsse "github.com/sigstore/sigstore/pkg/signature/dsse"
@@ -61,6 +59,7 @@ type AttestBlobCommand struct {
 
 	ArtifactHash string
 
+	StatementPath string
 	PredicatePath string
 	PredicateType string
 
@@ -81,8 +80,8 @@ func (c *AttestBlobCommand) Exec(ctx context.Context, artifactPath string) error
 		return &options.KeyParseError{}
 	}
 
-	if c.PredicatePath == "" {
-		return fmt.Errorf("predicate cannot be empty")
+	if options.NOf(c.PredicatePath, c.StatementPath) != 1 {
+		return fmt.Errorf("one of --predicate or --statement must be set")
 	}
 
 	if c.RekorEntryType != "dsse" && c.RekorEntryType != "intoto" {
@@ -99,73 +98,174 @@ func (c *AttestBlobCommand) Exec(ctx context.Context, artifactPath string) error
 		return errors.New("expected either new bundle or an rfc3161-timestamp path when using a TSA server")
 	}
 
-	var artifact []byte
-	var hexDigest string
+	base := path.Base(artifactPath)
+
+	var payload []byte
 	var err error
 
-	if c.ArtifactHash == "" {
-		if artifactPath == "-" {
-			artifact, err = io.ReadAll(os.Stdin)
-		} else {
-			fmt.Fprintln(os.Stderr, "Using payload from:", artifactPath)
-			artifact, err = os.ReadFile(filepath.Clean(artifactPath))
-		}
+	if c.StatementPath != "" {
+		fmt.Fprintln(os.Stderr, "Using statement from:", c.StatementPath)
+		payload, err = os.ReadFile(filepath.Clean(c.StatementPath))
 		if err != nil {
-			return err
+			return fmt.Errorf("could not read statement: %w", err)
 		}
-	}
+		if _, err := validateStatement(payload); err != nil {
+			return fmt.Errorf("invalid statement: %w", err)
+		}
 
-	if c.ArtifactHash == "" {
-		digest, _, err := signature.ComputeDigestForSigning(bytes.NewReader(artifact), crypto.SHA256, []crypto.Hash{crypto.SHA256, crypto.SHA384})
-		if err != nil {
-			return err
-		}
-		hexDigest = strings.ToLower(hex.EncodeToString(digest))
 	} else {
-		hexDigest = c.ArtifactHash
+		var artifact []byte
+		var hexDigest string
+		if c.ArtifactHash == "" {
+			if artifactPath == "-" {
+				artifact, err = io.ReadAll(os.Stdin)
+			} else {
+				fmt.Fprintln(os.Stderr, "Using payload from:", artifactPath)
+				artifact, err = os.ReadFile(filepath.Clean(artifactPath))
+			}
+			if err != nil {
+				return err
+			}
+		}
+
+		if c.ArtifactHash == "" {
+			digest, _, err := signature.ComputeDigestForSigning(bytes.NewReader(artifact), crypto.SHA256, []crypto.Hash{crypto.SHA256, crypto.SHA384})
+			if err != nil {
+				return err
+			}
+			hexDigest = strings.ToLower(hex.EncodeToString(digest))
+		} else {
+			hexDigest = c.ArtifactHash
+		}
+		predicate, err := predicateReader(c.PredicatePath)
+		if err != nil {
+			return fmt.Errorf("getting predicate reader: %w", err)
+		}
+		defer predicate.Close()
+		sh, err := attestation.GenerateStatement(attestation.GenerateOpts{
+			Predicate: predicate,
+			Type:      c.PredicateType,
+			Digest:    hexDigest,
+			Repo:      base,
+		})
+		if err != nil {
+			return err
+		}
+		payload, err = json.Marshal(sh)
+		if err != nil {
+			return err
+		}
 	}
 
-	predicate, err := predicateReader(c.PredicatePath)
-	if err != nil {
-		return fmt.Errorf("getting predicate reader: %w", err)
-	}
-	defer predicate.Close()
+	if c.SigningConfig != nil {
+		var keypair sign.Keypair
+		var ephemeralKeypair bool
+		var idToken string
+		var sv *cosign_sign.SignerVerifier
+		var err error
 
-	sv, err := sign.SignerFromKeyOpts(ctx, c.CertPath, c.CertChainPath, c.KeyOpts)
+		if c.Sk || c.Slot != "" || c.KeyRef != "" || c.CertPath != "" {
+			sv, _, err = cosign_sign.SignerFromKeyOpts(ctx, c.CertPath, c.CertChainPath, c.KeyOpts)
+			if err != nil {
+				return fmt.Errorf("getting signer: %w", err)
+			}
+			keypair, err = key.NewSignerVerifierKeypair(sv, c.DefaultLoadOptions)
+			if err != nil {
+				return fmt.Errorf("creating signerverifier keypair: %w", err)
+			}
+		} else {
+			keypair, err = sign.NewEphemeralKeypair(nil)
+			if err != nil {
+				return fmt.Errorf("generating keypair: %w", err)
+			}
+			ephemeralKeypair = true
+		}
+		defer func() {
+			if sv != nil {
+				sv.Close()
+			}
+		}()
+
+		if ephemeralKeypair || c.IssueCertificateForExistingKey {
+			idToken, err = auth.RetrieveIDToken(ctx, auth.IDTokenConfig{
+				TokenOrPath:      c.IDToken,
+				DisableProviders: c.OIDCDisableProviders,
+				Provider:         c.OIDCProvider,
+				AuthFlow:         c.FulcioAuthFlow,
+				SkipConfirm:      c.SkipConfirmation,
+				OIDCServices:     c.SigningConfig.OIDCProviderURLs(),
+				ClientID:         c.OIDCClientID,
+				ClientSecret:     c.OIDCClientSecret,
+				RedirectURL:      c.OIDCRedirectURL,
+			})
+			if err != nil {
+				return fmt.Errorf("retrieving ID token: %w", err)
+			}
+		}
+
+		content := &sign.DSSEData{
+			Data:        payload,
+			PayloadType: "application/vnd.in-toto+json",
+		}
+		bundle, err := cbundle.SignData(ctx, content, keypair, idToken, c.SigningConfig, c.TrustedMaterial)
+		if err != nil {
+			return fmt.Errorf("signing bundle: %w", err)
+		}
+		if err := os.WriteFile(c.BundlePath, bundle, 0600); err != nil {
+			return fmt.Errorf("create bundle file: %w", err)
+		}
+		ui.Infof(ctx, "Wrote bundle to file %s", c.BundlePath)
+		return nil
+	}
+
+	sv, genKey, err := cosign_sign.SignerFromKeyOpts(ctx, c.CertPath, c.CertChainPath, c.KeyOpts)
 	if err != nil {
 		return fmt.Errorf("getting signer: %w", err)
+	}
+	if genKey || c.IssueCertificateForExistingKey {
+		sv, err = cosign_sign.KeylessSigner(ctx, c.KeyOpts, sv)
+		if err != nil {
+			return fmt.Errorf("getting Fulcio signer: %w", err)
+		}
 	}
 	defer sv.Close()
 	wrapped := sigstoredsse.WrapSigner(sv, types.IntotoPayloadType)
 
-	base := path.Base(artifactPath)
-
-	sh, err := attestation.GenerateStatement(attestation.GenerateOpts{
-		Predicate: predicate,
-		Type:      c.PredicateType,
-		Digest:    hexDigest,
-		Repo:      base,
-	})
-	if err != nil {
-		return err
-	}
-
-	payload, err := json.Marshal(sh)
-	if err != nil {
-		return err
-	}
-
 	sig, err := wrapped.SignMessage(bytes.NewReader(payload), signatureoptions.WithContext(ctx))
 	if err != nil {
-		return errors.Wrap(err, "signing")
+		return fmt.Errorf("signing: %w", err)
 	}
 
 	var rfc3161Timestamp *cbundle.RFC3161Timestamp
 	var timestampBytes []byte
+	var tsaPayload []byte
 	var rekorEntry *models.LogEntryAnon
 
-	if c.TSAServerURL != "" {
-		timestampBytes, err = tsa.GetTimestampedSignature(sig, client.NewTSAClient(c.TSAServerURL))
+	if c.KeyOpts.TSAServerURL != "" {
+		tc := tsaclient.NewTSAClient(c.KeyOpts.TSAServerURL)
+		if c.TSAClientCert != "" {
+			tc = tsaclient.NewTSAClientMTLS(c.KeyOpts.TSAServerURL,
+				c.KeyOpts.TSAClientCACert,
+				c.KeyOpts.TSAClientCert,
+				c.KeyOpts.TSAClientKey,
+				c.KeyOpts.TSAServerName,
+			)
+		}
+		// We need to decide what signature to send to the timestamp authority.
+		//
+		// Historically, cosign sent `sig`, which is the entire JSON DSSE
+		// Envelope. However, when sigstore clients are verifying a bundle they
+		// will use the DSSE Sig field, so we choose what signature to send to
+		// the timestamp authority based on our output format.
+		if c.NewBundleFormat {
+			tsaPayload, err = cosign.GetDSSESigBytes(sig)
+			if err != nil {
+				return err
+			}
+		} else {
+			tsaPayload = sig
+		}
+		timestampBytes, err = tsa.GetTimestampedSignature(tsaPayload, tc)
 		if err != nil {
 			return err
 		}
@@ -192,7 +292,7 @@ func (c *AttestBlobCommand) Exec(ctx context.Context, artifactPath string) error
 	if err != nil {
 		return err
 	}
-	shouldUpload, err := sign.ShouldUploadToTlog(ctx, c.KeyOpts, nil, c.TlogUpload)
+	shouldUpload, err := cosign_sign.ShouldUploadToTlog(ctx, c.KeyOpts, nil, c.TlogUpload)
 	if err != nil {
 		return fmt.Errorf("upload to tlog: %w", err)
 	}
@@ -218,7 +318,12 @@ func (c *AttestBlobCommand) Exec(ctx context.Context, artifactPath string) error
 	if c.BundlePath != "" {
 		var contents []byte
 		if c.NewBundleFormat {
-			contents, err = makeNewBundle(sv, rekorEntry, payload, sig, signer, timestampBytes)
+			pubKey, err := sv.PublicKey()
+			if err != nil {
+				return err
+			}
+
+			contents, err = cbundle.MakeNewBundle(pubKey, rekorEntry, payload, sig, signer, timestampBytes)
 			if err != nil {
 				return err
 			}
@@ -280,63 +385,10 @@ func (c *AttestBlobCommand) Exec(ctx context.Context, artifactPath string) error
 	return nil
 }
 
-func makeNewBundle(sv *sign.SignerVerifier, rekorEntry *models.LogEntryAnon, payload, sig, signer, timestampBytes []byte) ([]byte, error) {
-	// Determine if signature is certificate or not
-	var hint string
-	var rawCert []byte
-
-	cert, err := cryptoutils.UnmarshalCertificatesFromPEM(signer)
-	if err != nil || len(cert) == 0 {
-		pubKey, err := sv.PublicKey()
-		if err != nil {
-			return nil, err
-		}
-		pkixPubKey, err := x509.MarshalPKIXPublicKey(pubKey)
-		if err != nil {
-			return nil, err
-		}
-		hashedBytes := sha256.Sum256(pkixPubKey)
-		hint = base64.StdEncoding.EncodeToString(hashedBytes[:])
-	} else {
-		rawCert = cert[0].Raw
+func validateStatement(payload []byte) (string, error) {
+	var statement *intotov1.Statement
+	if err := json.Unmarshal(payload, &statement); err != nil {
+		return "", fmt.Errorf("invalid statement: %w", err)
 	}
-
-	bundle, err := cbundle.MakeProtobufBundle(hint, rawCert, rekorEntry, timestampBytes)
-	if err != nil {
-		return nil, err
-	}
-
-	var envelope dsse.Envelope
-	err = json.Unmarshal(sig, &envelope)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(envelope.Signatures) == 0 {
-		return nil, fmt.Errorf("no signature in DSSE envelope")
-	}
-
-	sigBytes, err := base64.StdEncoding.DecodeString(envelope.Signatures[0].Sig)
-	if err != nil {
-		return nil, err
-	}
-
-	bundle.Content = &protobundle.Bundle_DsseEnvelope{
-		DsseEnvelope: &protodsse.Envelope{
-			Payload:     payload,
-			PayloadType: envelope.PayloadType,
-			Signatures: []*protodsse.Signature{
-				{
-					Sig: sigBytes,
-				},
-			},
-		},
-	}
-
-	contents, err := protojson.Marshal(bundle)
-	if err != nil {
-		return nil, err
-	}
-
-	return contents, nil
+	return statement.PredicateType, nil
 }

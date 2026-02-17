@@ -59,16 +59,16 @@ func (s *sigLayer) Annotations() (map[string]string, error) {
 
 // Payload implements oci.Signature
 func (s *sigLayer) Payload() ([]byte, error) {
-	size, err := s.Layer.Size()
+	size, err := s.Size()
 	if err != nil {
 		return nil, err
 	}
-	err = payloadsize.CheckSize(uint64(size))
+	err = payloadsize.CheckSize(uint64(size)) // #nosec G115 -- size is non-negative
 	if err != nil {
 		return nil, err
 	}
 	// Compressed is a misnomer here, we just want the raw bytes from the registry.
-	r, err := s.Layer.Compressed()
+	r, err := s.Compressed()
 	if err != nil {
 		return nil, err
 	}

@@ -1,0 +1,78 @@
+# Copyright 2024 The Sigstore Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Conformance Tests Nightly
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # 12:00 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Extract version of Go to use
+        run: echo "GOVERSION=$(awk -F'[:@]' '/FROM golang/{print $2; exit}' Dockerfile)" >> $GITHUB_ENV
+
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '${{ env.GOVERSION }}'
+          check-latest: true
+          cache: false
+
+      - run: make cosign conformance
+
+      - uses: sigstore/sigstore-conformance@main
+        with:
+          entrypoint: ${{ github.workspace }}/conformance
+
+      - name: Create Issue on Failure
+        if: failure()
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd # v8.0.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const runId = context.runId;
+            const issueTitle = 'Conformance Tests Failed';
+            const issueBody = `The nightly conformance tests have failed. Please check the logs for more details.\n\nWorkflow run: https://github.com/${owner}/${repo}/actions/runs/${runId}\n\ncc @sigstore/security-response-team @sigstore/cosign-codeowners`;
+            const issueLabel = 'bug';
+
+            const existingIssues = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              labels: issueLabel,
+            });
+
+            const issueExists = existingIssues.data.some(issue => issue.title === issueTitle);
+
+            if (!issueExists) {
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title: issueTitle,
+                body: issueBody,
+                labels: [issueLabel],
+              });
+            }

@@ -32,6 +32,10 @@ func (o *LoadOptions) AddFlags(cmd *cobra.Command) {
 	o.Registry.AddFlags(cmd)
 	cmd.Flags().StringVar(&o.Directory, "dir", "",
 		"path to directory where the signed image is stored on disk")
-	_ = cmd.Flags().SetAnnotation("dir", cobra.BashCompSubdirsInDir, []string{})
+	_ = cmd.MarkFlagDirname("dir")
 	_ = cmd.MarkFlagRequired("dir")
+
+	cmd.Flags().StringVar(&o.Registry.Name, "registry", "",
+		"registry to use for bulk load")
+	_ = cmd.Flags().SetAnnotation("registry", cobra.BashCompSubdirsInDir, []string{})
 }

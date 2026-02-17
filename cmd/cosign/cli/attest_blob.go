@@ -15,9 +15,16 @@
 package cli
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/attest"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/generate"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
+	"github.com/sigstore/cosign/v2/internal/ui"
+	"github.com/sigstore/cosign/v2/pkg/cosign"
+	"github.com/sigstore/cosign/v2/pkg/cosign/env"
+	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/spf13/cobra"
 )
 
@@ -47,34 +54,83 @@ func AttestBlob() *cobra.Command {
   # supply attestation via stdin
   echo <PAYLOAD> | cosign attest-blob --predicate - --yes`,
 
-		Args:             cobra.ExactArgs(1),
 		PersistentPreRun: options.BindViper,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if o.Predicate.Statement == "" && len(args) != 1 {
+				return cobra.ExactArgs(1)(cmd, args)
+			}
 			oidcClientSecret, err := o.OIDC.ClientSecret()
 			if err != nil {
 				return err
 			}
+
 			ko := options.KeyOpts{
-				KeyRef:                   o.Key,
-				PassFunc:                 generate.GetPass,
-				Sk:                       o.SecurityKey.Use,
-				Slot:                     o.SecurityKey.Slot,
-				FulcioURL:                o.Fulcio.URL,
-				IDToken:                  o.Fulcio.IdentityToken,
-				FulcioAuthFlow:           o.Fulcio.AuthFlow,
-				InsecureSkipFulcioVerify: o.Fulcio.InsecureSkipFulcioVerify,
-				RekorURL:                 o.Rekor.URL,
-				OIDCIssuer:               o.OIDC.Issuer,
-				OIDCClientID:             o.OIDC.ClientID,
-				OIDCClientSecret:         oidcClientSecret,
-				OIDCRedirectURL:          o.OIDC.RedirectURL,
-				OIDCProvider:             o.OIDC.Provider,
-				SkipConfirmation:         o.SkipConfirmation,
-				TSAServerURL:             o.TSAServerURL,
-				RFC3161TimestampPath:     o.RFC3161TimestampPath,
-				BundlePath:               o.BundlePath,
-				NewBundleFormat:          o.NewBundleFormat,
+				KeyRef:                         o.Key,
+				PassFunc:                       generate.GetPass,
+				Sk:                             o.SecurityKey.Use,
+				Slot:                           o.SecurityKey.Slot,
+				FulcioURL:                      o.Fulcio.URL,
+				IDToken:                        o.Fulcio.IdentityToken,
+				FulcioAuthFlow:                 o.Fulcio.AuthFlow,
+				InsecureSkipFulcioVerify:       o.Fulcio.InsecureSkipFulcioVerify,
+				RekorURL:                       o.Rekor.URL,
+				OIDCIssuer:                     o.OIDC.Issuer,
+				OIDCClientID:                   o.OIDC.ClientID,
+				OIDCClientSecret:               oidcClientSecret,
+				OIDCRedirectURL:                o.OIDC.RedirectURL,
+				OIDCProvider:                   o.OIDC.Provider,
+				SkipConfirmation:               o.SkipConfirmation,
+				TSAClientCACert:                o.TSAClientCACert,
+				TSAClientKey:                   o.TSAClientKey,
+				TSAClientCert:                  o.TSAClientCert,
+				TSAServerName:                  o.TSAServerName,
+				TSAServerURL:                   o.TSAServerURL,
+				RFC3161TimestampPath:           o.RFC3161TimestampPath,
+				IssueCertificateForExistingKey: o.IssueCertificate,
+				BundlePath:                     o.BundlePath,
+				NewBundleFormat:                o.NewBundleFormat,
 			}
+			// If a signing config is used, then service URLs cannot be specified
+			if (o.UseSigningConfig || o.SigningConfigPath != "") &&
+				((o.Rekor.URL != "" && o.Rekor.URL != options.DefaultRekorURL) ||
+					(o.Fulcio.URL != "" && o.Fulcio.URL != options.DefaultFulcioURL) ||
+					(o.OIDC.Issuer != "" && o.OIDC.Issuer != options.DefaultOIDCIssuerURL) ||
+					o.TSAServerURL != "") {
+				return fmt.Errorf("cannot specify service URLs and use signing config")
+			}
+			// Signing config requires a bundle as output for verification materials since sigstore-go is used
+			if (o.UseSigningConfig || o.SigningConfigPath != "") && o.BundlePath == "" {
+				return fmt.Errorf("must provide --bundle with --signing-config or --use-signing-config")
+			}
+			// Fetch a trusted root when:
+			// * requesting a certificate and no CT log key is provided to verify an SCT
+			// * using a signing config and signing using sigstore-go
+			if (o.Key == "" && env.Getenv(env.VariableSigstoreCTLogPublicKeyFile) == "") ||
+				(o.UseSigningConfig || o.SigningConfigPath != "") {
+				if o.TrustedRootPath != "" {
+					ko.TrustedMaterial, err = root.NewTrustedRootFromPath(o.TrustedRootPath)
+					if err != nil {
+						return fmt.Errorf("loading trusted root: %w", err)
+					}
+				} else {
+					ko.TrustedMaterial, err = cosign.TrustedRoot()
+					if err != nil {
+						ui.Warnf(context.Background(), "Could not fetch trusted_root.json from the TUF repository. Continuing with individual targets. Error from TUF: %v", err)
+					}
+				}
+			}
+			if o.UseSigningConfig {
+				ko.SigningConfig, err = cosign.SigningConfig()
+				if err != nil {
+					return fmt.Errorf("error getting signing config from TUF: %w", err)
+				}
+			} else if o.SigningConfigPath != "" {
+				ko.SigningConfig, err = root.NewSigningConfigFromPath(o.SigningConfigPath)
+				if err != nil {
+					return fmt.Errorf("error reading signing config from file: %w", err)
+				}
+			}
+
 			v := attest.AttestBlobCommand{
 				KeyOpts:           ko,
 				CertPath:          o.Cert,
@@ -83,13 +139,18 @@ func AttestBlob() *cobra.Command {
 				TlogUpload:        o.TlogUpload,
 				PredicateType:     o.Predicate.Type,
 				PredicatePath:     o.Predicate.Path,
+				StatementPath:     o.Predicate.Statement,
 				OutputSignature:   o.OutputSignature,
 				OutputAttestation: o.OutputAttestation,
 				OutputCertificate: o.OutputCertificate,
 				Timeout:           ro.Timeout,
 				RekorEntryType:    o.RekorEntryType,
 			}
-			return v.Exec(cmd.Context(), args[0])
+			var artifactPath string
+			if len(args) == 1 {
+				artifactPath = args[0]
+			}
+			return v.Exec(cmd.Context(), artifactPath)
 		},
 	}
 	o.AddFlags(cmd)

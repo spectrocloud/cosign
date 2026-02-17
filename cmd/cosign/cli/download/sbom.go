@@ -59,14 +59,14 @@ func SBOMCmd(
 	}
 
 	se, err = platform.SignedEntityForPlatform(se, dnOpts.Platform)
-	if err != nil {
+	if err != nil && !errors.Is(err, platform.ErrRefNotMultiArch) {
 		return nil, err
 	}
 
 	idx, isIndex := se.(oci.SignedImageIndex)
 
 	file, err := se.Attachment("sbom")
-	if errors.Is(err, ociremote.ErrImageNotFound) {
+	if errors.Is(err, ociremote.ErrImageNotFound) || (file == nil && err == nil) {
 		if !isIndex {
 			return nil, errors.New("no sbom attached to reference")
 		}

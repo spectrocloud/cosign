@@ -16,8 +16,11 @@
 package layout
 
 import (
+	"strings"
+
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/sigstore/cosign/v2/pkg/oci"
+	"github.com/sigstore/cosign/v2/pkg/oci/empty"
 	"github.com/sigstore/cosign/v2/pkg/oci/internal/signature"
 )
 
@@ -31,7 +34,7 @@ var _ oci.Signatures = (*sigs)(nil)
 
 // Get implements oci.Signatures
 func (s *sigs) Get() ([]oci.Signature, error) {
-	manifest, err := s.Image.Manifest()
+	manifest, err := s.Manifest()
 	if err != nil {
 		return nil, err
 	}
@@ -41,11 +44,47 @@ func (s *sigs) Get() ([]oci.Signature, error) {
 	}
 	signatures := make([]oci.Signature, 0, numLayers)
 	for _, desc := range manifest.Layers {
-		l, err := s.Image.LayerByDigest(desc.Digest)
+		l, err := s.LayerByDigest(desc.Digest)
 		if err != nil {
 			return nil, err
 		}
 		signatures = append(signatures, signature.New(l, desc))
 	}
 	return signatures, nil
+}
+
+// Signatures fetches the signatures image represented by the named reference.
+// If the tag is not found, this returns an empty oci.Signatures.
+func Signatures(ref string, path string) (oci.Signatures, error) {
+	sii, err := SignedImageIndex(path)
+	if err != nil {
+		return nil, err
+	}
+
+	manifest, err := sii.IndexManifest()
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range manifest.Manifests {
+		if val, ok := m.Annotations[KindAnnotation]; ok && val == SigsAnnotation {
+			imgRef, ok := m.Annotations[ImageRefAnnotation]
+			if !ok {
+				continue
+			}
+
+			if !strings.HasSuffix(imgRef, ref) {
+				continue
+			}
+
+			i, err := sii.Image(m.Digest)
+			if err != nil {
+				return nil, err
+			}
+			return &sigs{
+				Image: i,
+			}, nil
+		}
+	}
+
+	return empty.Signatures(), nil
 }

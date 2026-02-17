@@ -28,11 +28,6 @@ on:
     branches: ['main', 'release-*']
   pull_request:
 
-permissions: read-all
-
-env:
-  GO_VERSION: '1.22'
-
 jobs:
   unit-tests:
     name: Run unit tests
@@ -46,9 +41,12 @@ jobs:
       OS: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
       # https://github.com/mvdan/github-actions-golang#how-do-i-set-up-caching-between-builds
-      - uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           # In order:
           # * Module download cache
@@ -63,32 +61,39 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+
+      - name: Extract version of Go to use
+        shell: bash # To use awk on Windows
+        run: echo "GOVERSION=$(awk -F'[:@]' '/FROM golang/{print $2; exit}' Dockerfile)" >> $GITHUB_ENV
+
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version: '${{ env.GOVERSION }}'
           check-latest: true
+          cache: false
+
       - name: Run Go tests
-        env:
-          # See #2091 for the issue describing this temp workaround.
-          GODEBUG: x509sha1=1
-        run: go test -tags=sct -covermode atomic -coverprofile coverage.txt $(go list ./... | grep -v third_party/)
+        run: go test -covermode atomic -coverprofile coverage.txt $(go list ./... | grep -v third_party/)
+
       - name: Upload Coverage Report
-        uses: codecov/codecov-action@e28ff129e5465c2c0dcc6f003fc735cb6ae0c673 # v4.5.0
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5.5.1
         with:
           env_vars: OS
+
       - name: Run Go tests w/ `-race`
-        env:
-          # See #2091 for the issue describing this temp workaround.
-          GODEBUG: x509sha1=1
         if: ${{ runner.os == 'Linux' }}
-        run: go test -tags=sct -race $(go list ./... | grep -v third_party/)
+        run: go test -race $(go list ./... | grep -v third_party/)
 
   e2e-tests:
     name: Run e2e tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
       # Related to https://github.com/sigstore/cosign/issues/3149
       - name: free up disk space
         run: |
@@ -143,7 +148,7 @@ jobs:
       - name: check disk space
         run: df -h
       # https://github.com/mvdan/github-actions-golang#how-do-i-set-up-caching-between-builds
-      - uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           # In order:
           # * Module download cache
@@ -158,15 +163,21 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+
+      - name: Extract version of Go to use
+        run: echo "GOVERSION=$(awk -F'[:@]' '/FROM golang/{print $2; exit}' Dockerfile)" >> $GITHUB_ENV
+
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version: '${{ env.GOVERSION }}'
           check-latest: true
-      - uses: ko-build/setup-ko@3aebd0597dc1e9d1a26bcfdb7cbeb19c131d3037 # v0.7
+          cache: false
+
+      - uses: ko-build/setup-ko@d006021bd0c28d1ce33a07e7943d48b079944c8d # v0.9
       - name: setup kind cluster
         run: |
           # Used to test: cosign generate-key-pair k8s://...
-          go install sigs.k8s.io/kind@v0.20.0
+          go install sigs.k8s.io/kind@v0.27.0
           kind create cluster
 
       - name: Run end-to-end tests
@@ -174,20 +185,30 @@ jobs:
 
       - name: Collect diagnostics
         if: ${{ failure() }}
-        uses: chainguard-dev/actions/kind-diag@84c993eaf02da1c325854fb272a4df9184bd80fc # main
+        uses: chainguard-dev/actions/kind-diag@f632aec66edeebe245ad686a33a0c0a2160cac31 # v1.4.14
 
   e2e-windows-powershell-tests:
     name: Run PowerShell E2E tests
     runs-on: windows-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          go-version: ${{ env.GO_VERSION }}
+          persist-credentials: false
+
+      - name: Extract version of Go to use
+        shell: bash # To use awk on Windows
+        run: echo "GOVERSION=$(awk -F'[:@]' '/FROM golang/{print $2; exit}' Dockerfile)" >> $GITHUB_ENV
+
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '${{ env.GOVERSION }}'
           check-latest: true
+          cache: false
 
       # https://github.com/mvdan/github-actions-golang#how-do-i-set-up-caching-between-builds
-      - uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4.0.2
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         with:
           # In order:
           # * Module download cache
@@ -205,14 +226,25 @@ jobs:
   license-check:
     name: license boilerplate check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-      - uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          go-version: ${{ env.GO_VERSION }}
+          persist-credentials: false
+
+      - name: Extract version of Go to use
+        run: echo "GOVERSION=$(awk -F'[:@]' '/FROM golang/{print $2; exit}' Dockerfile)" >> $GITHUB_ENV
+
+      - uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: '${{ env.GOVERSION }}'
           check-latest: true
+          cache: false
+
       - name: Install addlicense
         run: go install github.com/google/addlicense@latest
+
       - name: Check license headers
         run: |
           set -e

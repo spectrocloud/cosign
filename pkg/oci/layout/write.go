@@ -16,52 +16,115 @@
 package layout
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"maps"
+	"os"
+	"path/filepath"
+	"runtime"
+	"sync"
 
+	"github.com/google/go-containerregistry/pkg/logs"
+	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
-	"github.com/google/go-containerregistry/pkg/v1/layout"
+	"github.com/google/go-containerregistry/pkg/v1/match"
+	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	"github.com/google/go-containerregistry/pkg/v1/partial"
+	"github.com/google/go-containerregistry/pkg/v1/stream"
+	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/sigstore/cosign/v2/pkg/oci"
+	"golang.org/x/sync/errgroup"
 )
 
+var fileLocks map[string]sync.Locker = make(map[string]sync.Locker)
+
+func getFileMutex(path string) sync.Locker {
+	if _, ok := fileLocks[path]; !ok {
+		fileLocks[path] = &sync.Mutex{}
+	}
+	return fileLocks[path]
+}
+
 // WriteSignedImage writes the image and all related signatures, attestations and attachments
-func WriteSignedImage(path string, si oci.SignedImage) error {
-	// First, write an empty index
-	layoutPath, err := layout.Write(path, empty.Index)
+func WriteSignedImage(path string, si oci.SignedImage, ref name.Reference, extraAnnotations map[string]string) error {
+	layoutPath, err := FromPath(path)
+	if os.IsNotExist(err) {
+		// If the layout doesn't exist, create a new one
+		layoutPath, err = Write(path, empty.Index)
+	}
 	if err != nil {
 		return err
 	}
+
+	if extraAnnotations == nil {
+		extraAnnotations = make(map[string]string)
+	}
+	extraAnnotations[KindAnnotation] = ImageAnnotation
+
 	// write the image
-	if err := appendImage(layoutPath, si, imageAnnotation); err != nil {
+	if err := appendImage(layoutPath, si, ref, extraAnnotations); err != nil {
 		return fmt.Errorf("appending signed image: %w", err)
 	}
-	return writeSignedEntity(layoutPath, si)
+	return writeSignedEntity(layoutPath, si, ref)
 }
 
 // WriteSignedImageIndex writes the image index and all related signatures, attestations and attachments
-func WriteSignedImageIndex(path string, si oci.SignedImageIndex) error {
-	// First, write an empty index
-	layoutPath, err := layout.Write(path, empty.Index)
+func WriteSignedImageIndex(path string, si oci.SignedImageIndex, ref name.Reference, extraAnnotations map[string]string) error {
+	layoutPath, err := FromPath(path)
+	if os.IsNotExist(err) {
+		// If the layout doesn't exist, create a new one
+		layoutPath, err = Write(path, empty.Index)
+	}
 	if err != nil {
 		return err
 	}
-	// write the image index
-	if err := layoutPath.AppendIndex(si, layout.WithAnnotations(
-		map[string]string{kindAnnotation: imageIndexAnnotation},
-	)); err != nil {
+
+	m, err := si.IndexManifest()
+	if err != nil {
+		return fmt.Errorf("getting index manifest: %w", err)
+	}
+
+	annotations := make(map[string]string)
+	if m != nil {
+		maps.Copy(annotations, m.Annotations)
+	}
+
+	if extraAnnotations != nil {
+		maps.Copy(annotations, extraAnnotations)
+	}
+	annotations[KindAnnotation] = ImageIndexAnnotation
+	imageRef, err := getImageRef(ref)
+	if err != nil {
+		return err // Return the error from getImageRef immediately.
+	}
+	annotations[ImageRefAnnotation] = imageRef
+
+	if err := layoutPath.ReplaceIndex(si, match.Name(imageRef), WithAnnotations(annotations)); err != nil {
 		return fmt.Errorf("appending signed image index: %w", err)
 	}
-	return writeSignedEntity(layoutPath, si)
+
+	return writeSignedEntity(layoutPath, si, ref)
 }
 
-func writeSignedEntity(path layout.Path, se oci.SignedEntity) error {
+func writeSignedEntity(path Path, se oci.SignedEntity, ref name.Reference) error {
 	// write the signatures
 	sigs, err := se.Signatures()
 	if err != nil {
 		return fmt.Errorf("getting signatures: %w", err)
 	}
 	if !isEmpty(sigs) {
-		if err := appendImage(path, sigs, sigsAnnotation); err != nil {
+		h, err := se.Digest()
+		if err != nil {
+			return fmt.Errorf("getting digest: %w", err)
+		}
+		tag := ref.Context().Tag(normalize(h, CustomTagPrefix, SignatureTagSuffix))
+		if err := appendImage(path, sigs, tag, map[string]string{
+			KindAnnotation: SigsAnnotation,
+		}); err != nil {
 			return fmt.Errorf("appending signatures: %w", err)
 		}
 	}
@@ -72,11 +135,36 @@ func writeSignedEntity(path layout.Path, se oci.SignedEntity) error {
 		return fmt.Errorf("getting atts")
 	}
 	if !isEmpty(atts) {
-		if err := appendImage(path, atts, attsAnnotation); err != nil {
+		h, err := se.Digest()
+		if err != nil {
+			return fmt.Errorf("getting digest: %w", err)
+		}
+		tag := ref.Context().Tag(normalize(h, CustomTagPrefix, AttestationTagSuffix))
+		if err := appendImage(path, atts, tag, map[string]string{
+			KindAnnotation: AttsAnnotation,
+		}); err != nil {
 			return fmt.Errorf("appending atts: %w", err)
 		}
 	}
+
 	// TODO (priyawadhwa@) and attachments
+	// temp handle sboms - amartin120@
+	sboms, err := se.Attachment("sbom")
+	if err != nil {
+		return nil // no sbom found
+	}
+	if sboms != nil {
+		h, err := se.Digest()
+		if err != nil {
+			return fmt.Errorf("getting digest: %w", err)
+		}
+		tag := ref.Context().Tag(normalize(h, CustomTagPrefix, SBOMTagSuffix))
+		if err := appendImage(path, sboms, tag, map[string]string{
+			KindAnnotation: SbomsAnnotation,
+		}); err != nil {
+			return fmt.Errorf("appending attachments: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -86,8 +174,543 @@ func isEmpty(s oci.Signatures) bool {
 	return ss == nil
 }
 
-func appendImage(path layout.Path, img v1.Image, annotation string) error {
-	return path.AppendImage(img, layout.WithAnnotations(
-		map[string]string{kindAnnotation: annotation},
-	))
+func appendImage(path Path, img v1.Image, ref name.Reference, extraAnnotations map[string]string) error {
+	imageRef, err := getImageRef(ref)
+	if err != nil {
+		return err // Return the error from getImageRef immediately.
+	}
+
+	m, err := img.Manifest()
+	if err != nil {
+		return fmt.Errorf("getting manifest: %w", err)
+	}
+	annotations := make(map[string]string)
+	if m != nil {
+		maps.Copy(annotations, m.Annotations)
+	}
+	if extraAnnotations != nil {
+		maps.Copy(annotations, extraAnnotations)
+	}
+	annotations[ImageRefAnnotation] = imageRef
+
+	return path.ReplaceImage(img,
+		match.Name(imageRef),
+		WithAnnotations(
+			annotations,
+		),
+	)
+}
+
+func getImageRef(ref name.Reference) (string, error) {
+	if ref == nil {
+		return "", errors.New("reference is nil")
+	}
+	imageRef := ref.Name()
+	return imageRef, nil
+}
+
+func normalize(h v1.Hash, prefix string, suffix string) string {
+	return normalizeWithSeparator(h, prefix, suffix, "-")
+}
+
+// normalizeWithSeparator turns image digests into tags with optional prefix & suffix:
+// sha256:d34db33f -> [prefix]sha256[algorithmSeparator]d34db33f[.suffix]
+func normalizeWithSeparator(h v1.Hash, prefix string, suffix string, algorithmSeparator string) string {
+	if suffix == "" {
+		return fmt.Sprint(prefix, h.Algorithm, algorithmSeparator, h.Hex)
+	}
+	return fmt.Sprint(prefix, h.Algorithm, algorithmSeparator, h.Hex, ".", suffix)
+}
+
+var layoutFile = `{
+    "imageLayoutVersion": "1.0.0"
+}`
+
+// renameMutex guards os.Rename calls in AppendImage on Windows only.
+var renameMutex sync.Mutex
+
+// AppendImage writes a v1.Image to the Path and updates
+// the index.json to reference it.
+func (l Path) AppendImage(img v1.Image, options ...Option) error {
+	if err := l.WriteImage(img); err != nil {
+		return err
+	}
+
+	desc, err := partial.Descriptor(img)
+	if err != nil {
+		return err
+	}
+
+	o := makeOptions(options...)
+	for _, opt := range o.descOpts {
+		opt(desc)
+	}
+
+	return l.AppendDescriptor(*desc)
+}
+
+// AppendIndex writes a v1.ImageIndex to the Path and updates
+// the index.json to reference it.
+func (l Path) AppendIndex(ii v1.ImageIndex, options ...Option) error {
+	if err := l.WriteIndex(ii); err != nil {
+		return err
+	}
+
+	desc, err := partial.Descriptor(ii)
+	if err != nil {
+		return err
+	}
+
+	o := makeOptions(options...)
+	for _, opt := range o.descOpts {
+		opt(desc)
+	}
+
+	return l.AppendDescriptor(*desc)
+}
+
+// AppendDescriptor adds a descriptor to the index.json of the Path.
+func (l Path) AppendDescriptor(desc v1.Descriptor) error {
+	ii, err := l.ImageIndex()
+	if err != nil {
+		return err
+	}
+
+	index, err := ii.IndexManifest()
+	if err != nil {
+		return err
+	}
+
+	index.Manifests = append(index.Manifests, desc)
+
+	rawIndex, err := json.MarshalIndent(index, "", "   ")
+	if err != nil {
+		return err
+	}
+
+	return l.WriteFile("index.json", rawIndex, os.ModePerm)
+}
+
+// ReplaceImage writes a v1.Image to the Path and updates
+// the index.json to reference it, replacing any existing one that matches matcher, if found.
+func (l Path) ReplaceImage(img v1.Image, matcher match.Matcher, options ...Option) error {
+	if err := l.WriteImage(img); err != nil {
+		return err
+	}
+
+	return l.replaceDescriptor(img, matcher, options...)
+}
+
+// ReplaceIndex writes a v1.ImageIndex to the Path and updates
+// the index.json to reference it, replacing any existing one that matches matcher, if found.
+func (l Path) ReplaceIndex(ii v1.ImageIndex, matcher match.Matcher, options ...Option) error {
+	if err := l.WriteIndex(ii); err != nil {
+		return err
+	}
+
+	return l.replaceDescriptor(ii, matcher, options...)
+}
+
+// replaceDescriptor adds a descriptor to the index.json of the Path, replacing
+// any one matching matcher, if found.
+func (l Path) replaceDescriptor(appendable mutate.Appendable, matcher match.Matcher, options ...Option) error {
+	ii, err := l.ImageIndex()
+	if err != nil {
+		return err
+	}
+
+	desc, err := partial.Descriptor(appendable)
+	if err != nil {
+		return err
+	}
+
+	o := makeOptions(options...)
+	for _, opt := range o.descOpts {
+		opt(desc)
+	}
+
+	add := mutate.IndexAddendum{
+		Add:        appendable,
+		Descriptor: *desc,
+	}
+	ii = mutate.AppendManifests(mutate.RemoveManifests(ii, matcher), add)
+
+	index, err := ii.IndexManifest()
+	if err != nil {
+		return err
+	}
+
+	rawIndex, err := json.MarshalIndent(index, "", "   ")
+	if err != nil {
+		return err
+	}
+
+	return l.WriteFile("index.json", rawIndex, os.ModePerm)
+}
+
+// RemoveDescriptors removes any descriptors that match the match.Matcher from the index.json of the Path.
+func (l Path) RemoveDescriptors(matcher match.Matcher) error {
+	ii, err := l.ImageIndex()
+	if err != nil {
+		return err
+	}
+	ii = mutate.RemoveManifests(ii, matcher)
+
+	index, err := ii.IndexManifest()
+	if err != nil {
+		return err
+	}
+
+	rawIndex, err := json.MarshalIndent(index, "", "   ")
+	if err != nil {
+		return err
+	}
+
+	return l.WriteFile("index.json", rawIndex, os.ModePerm)
+}
+
+// WriteFile write a file with arbitrary data at an arbitrary location in a v1
+// layout. Used mostly internally to write files like "oci-layout" and
+// "index.json", also can be used to write other arbitrary files. Do *not* use
+// this to write blobs. Use only WriteBlob() for that.
+func (l Path) WriteFile(name string, data []byte, perm os.FileMode) error {
+	if err := os.MkdirAll(l.path(), os.ModePerm); err != nil && !os.IsExist(err) {
+		return err
+	}
+
+	// Use file locking for all files to prevent concurrent writes
+	// This is to prevent concurrent writes from different processes.
+	if filepath.Base(name) == "index.json" {
+		lock := newFileLock(l, name)
+		if err := lock.Lock(); err != nil {
+			return fmt.Errorf("failed to acquire lock for %s: %w", name, err)
+		}
+		defer func() {
+			if err := lock.Unlock(); err != nil {
+				logs.Warn.Printf("failed to release lock for %s: %v", name, err)
+			}
+		}()
+	}
+
+	// This is to prevent concurrent writes from the same process.
+	mutex := getFileMutex(l.path(name))
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	tempFile, err := os.CreateTemp(filepath.Dir(l.path(name)), ".tmp-*")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := os.Remove(tempFile.Name()); err != nil {
+			logs.Warn.Printf("failed to remove temp file: %v", err)
+		}
+
+		if err := tempFile.Close(); err != nil {
+			logs.Warn.Printf("failed to close temp file: %v", err)
+		}
+	}()
+
+	if err := os.WriteFile(tempFile.Name(), data, perm); err != nil {
+		return err
+	}
+
+	return os.Rename(tempFile.Name(), l.path(name))
+}
+
+// WriteBlob copies a file to the blobs/ directory in the Path from the given ReadCloser at
+// blobs/{hash.Algorithm}/{hash.Hex}.
+func (l Path) WriteBlob(hash v1.Hash, r io.ReadCloser) error {
+	return l.writeBlob(hash, -1, r, nil)
+}
+
+func (l Path) writeBlob(hash v1.Hash, size int64, rc io.ReadCloser, renamer func() (v1.Hash, error)) error {
+	defer rc.Close()
+	if hash.Hex == "" && renamer == nil {
+		panic("writeBlob called an invalid hash and no renamer")
+	}
+
+	dir := l.path("blobs", hash.Algorithm)
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil && !os.IsExist(err) {
+		return err
+	}
+
+	// Check if blob already exists and is the correct size
+	file := filepath.Join(dir, hash.Hex)
+	if s, err := os.Stat(file); err == nil && !s.IsDir() && (s.Size() == size || size == -1) {
+		return nil
+	}
+
+	// If a renamer func was provided write to a temporary file
+	open := func() (*os.File, error) { return os.Create(file) }
+	if renamer != nil {
+		open = func() (*os.File, error) { return os.CreateTemp(dir, hash.Hex) }
+	}
+	w, err := open()
+	if err != nil {
+		return err
+	}
+	if renamer != nil {
+		// Delete temp file if an error is encountered before renaming
+		defer func() {
+			if err := os.Remove(w.Name()); err != nil && !errors.Is(err, os.ErrNotExist) {
+				logs.Warn.Printf("error removing temporary file after encountering an error while writing blob: %v", err)
+			}
+		}()
+	}
+	defer w.Close()
+
+	// Write to file and exit if not renaming
+	if n, err := io.Copy(w, rc); err != nil || renamer == nil {
+		return err
+	} else if size != -1 && n != size {
+		return fmt.Errorf("expected blob size %d, but only wrote %d", size, n)
+	}
+
+	// Always close reader before renaming, since Close computes the digest in
+	// the case of streaming layers. If Close is not called explicitly, it will
+	// occur in a goroutine that is not guaranteed to succeed before renamer is
+	// called. When renamer is the layer's Digest method, it can return
+	// ErrNotComputed.
+	if err := rc.Close(); err != nil {
+		return err
+	}
+
+	// Always close file before renaming
+	if err := w.Close(); err != nil {
+		return err
+	}
+
+	// Rename file based on the final hash
+	finalHash, err := renamer()
+	if err != nil {
+		return fmt.Errorf("error getting final digest of layer: %w", err)
+	}
+
+	renamePath := l.path("blobs", finalHash.Algorithm, finalHash.Hex)
+
+	if runtime.GOOS == "windows" {
+		renameMutex.Lock()
+		defer renameMutex.Unlock()
+	}
+	return os.Rename(w.Name(), renamePath)
+}
+
+// writeLayer writes the compressed layer to a blob. Unlike WriteBlob it will
+// write to a temporary file (suffixed with .tmp) within the layout until the
+// compressed reader is fully consumed and written to disk. Also unlike
+// WriteBlob, it will not skip writing and exit without error when a blob file
+// exists, but does not have the correct size. (The blob hash is not
+// considered, because it may be expensive to compute.)
+func (l Path) writeLayer(layer v1.Layer) error {
+	d, err := layer.Digest()
+	if errors.Is(err, stream.ErrNotComputed) {
+		// Allow digest errors, since streams may not have calculated the hash
+		// yet. Instead, use an empty value, which will be transformed into a
+		// random file name with `os.CreateTemp` and the final digest will be
+		// calculated after writing to a temp file and before renaming to the
+		// final path.
+		d = v1.Hash{Algorithm: "sha256", Hex: ""}
+	} else if err != nil {
+		return err
+	}
+
+	s, err := layer.Size()
+	if errors.Is(err, stream.ErrNotComputed) {
+		// Allow size errors, since streams may not have calculated the size
+		// yet. Instead, use zero as a sentinel value meaning that no size
+		// comparison can be done and any sized blob file should be considered
+		// valid and not overwritten.
+		//
+		// TODO: Provide an option to always overwrite blobs.
+		s = -1
+	} else if err != nil {
+		return err
+	}
+
+	r, err := layer.Compressed()
+	if err != nil {
+		return err
+	}
+
+	if err := l.writeBlob(d, s, r, layer.Digest); err != nil {
+		return fmt.Errorf("error writing layer: %w", err)
+	}
+	return nil
+}
+
+// RemoveBlob removes a file from the blobs directory in the Path
+// at blobs/{hash.Algorithm}/{hash.Hex}
+// It does *not* remove any reference to it from other manifests or indexes, or
+// from the root index.json.
+func (l Path) RemoveBlob(hash v1.Hash) error {
+	dir := l.path("blobs", hash.Algorithm)
+	err := os.Remove(filepath.Join(dir, hash.Hex))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// WriteImage writes an image, including its manifest, config and all of its
+// layers, to the blobs directory. If any blob already exists, as determined by
+// the hash filename, does not write it.
+// This function does *not* update the `index.json` file. If you want to write the
+// image and also update the `index.json`, call AppendImage(), which wraps this
+// and also updates the `index.json`.
+func (l Path) WriteImage(img v1.Image) error {
+	layers, err := img.Layers()
+	if err != nil {
+		return err
+	}
+
+	// Write the layers concurrently.
+	var g errgroup.Group
+	for _, layer := range layers {
+		layer := layer
+		g.Go(func() error {
+			return l.writeLayer(layer)
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	// Write the config.
+	cfgName, err := img.ConfigName()
+	if err != nil {
+		return err
+	}
+	cfgBlob, err := img.RawConfigFile()
+	if err != nil {
+		return err
+	}
+	if err := l.WriteBlob(cfgName, io.NopCloser(bytes.NewReader(cfgBlob))); err != nil {
+		return err
+	}
+
+	// Write the img manifest.
+	d, err := img.Digest()
+	if err != nil {
+		return err
+	}
+	manifest, err := img.RawManifest()
+	if err != nil {
+		return err
+	}
+
+	return l.WriteBlob(d, io.NopCloser(bytes.NewReader(manifest)))
+}
+
+type withLayer interface {
+	Layer(v1.Hash) (v1.Layer, error)
+}
+
+type withBlob interface {
+	Blob(v1.Hash) (io.ReadCloser, error)
+}
+
+func (l Path) writeIndexToFile(indexFile string, ii v1.ImageIndex) error {
+	index, err := ii.IndexManifest()
+	if err != nil {
+		return err
+	}
+
+	// Walk the descriptors and write any v1.Image or v1.ImageIndex that we find.
+	// If we come across something we don't expect, just write it as a blob.
+	for _, desc := range index.Manifests {
+		switch desc.MediaType {
+		case types.OCIImageIndex, types.DockerManifestList:
+			ii, err := ii.ImageIndex(desc.Digest)
+			if err != nil {
+				return err
+			}
+			if err := l.WriteIndex(ii); err != nil {
+				return err
+			}
+		case types.OCIManifestSchema1, types.DockerManifestSchema2:
+			img, err := ii.Image(desc.Digest)
+			if err != nil {
+				return err
+			}
+			if err := l.WriteImage(img); err != nil {
+				return err
+			}
+		default:
+			// TODO: The layout could reference arbitrary things, which we should
+			// probably just pass through.
+
+			var blob io.ReadCloser
+			// Workaround for #819.
+			if wl, ok := ii.(withLayer); ok {
+				layer, lerr := wl.Layer(desc.Digest)
+				if lerr != nil {
+					return lerr
+				}
+				blob, err = layer.Compressed()
+			} else if wb, ok := ii.(withBlob); ok {
+				blob, err = wb.Blob(desc.Digest)
+			}
+			if err != nil {
+				return err
+			}
+			if err := l.WriteBlob(desc.Digest, blob); err != nil {
+				return err
+			}
+		}
+	}
+
+	rawIndex, err := ii.RawManifest()
+	if err != nil {
+		return err
+	}
+
+	return l.WriteFile(indexFile, rawIndex, os.ModePerm)
+}
+
+// WriteIndex writes an index to the blobs directory. Walks down the children,
+// including its children manifests and/or indexes, and down the tree until all of
+// config and all layers, have been written. If any blob already exists, as determined by
+// the hash filename, does not write it.
+// This function does *not* update the `index.json` file. If you want to write the
+// index and also update the `index.json`, call AppendIndex(), which wraps this
+// and also updates the `index.json`.
+func (l Path) WriteIndex(ii v1.ImageIndex) error {
+	// Always just write oci-layout file, since it's small.
+	if err := l.WriteFile("oci-layout", []byte(layoutFile), os.ModePerm); err != nil {
+		return err
+	}
+
+	h, err := ii.Digest()
+	if err != nil {
+		return err
+	}
+
+	indexFile := filepath.Join("blobs", h.Algorithm, h.Hex)
+	return l.writeIndexToFile(indexFile, ii)
+}
+
+// Write constructs a Path at path from an ImageIndex.
+//
+// The contents are written in the following format:
+// At the top level, there is:
+//
+//	One oci-layout file containing the version of this image-layout.
+//	One index.json file listing descriptors for the contained images.
+//
+// Under blobs/, there is, for each image:
+//
+//	One file for each layer, named after the layer's SHA.
+//	One file for each config blob, named after its SHA.
+//	One file for each manifest blob, named after its SHA.
+func Write(path string, ii v1.ImageIndex) (Path, error) {
+	lp := Path(path)
+	// Always just write oci-layout file, since it's small.
+	if err := lp.WriteFile("oci-layout", []byte(layoutFile), os.ModePerm); err != nil {
+		return "", err
+	}
+
+	// TODO create blobs/ in case there is a blobs file which would prevent the directory from being created
+
+	return lp, lp.writeIndexToFile("index.json", ii)
 }

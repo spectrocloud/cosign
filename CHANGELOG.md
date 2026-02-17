@@ -1,3 +1,189 @@
+# v2.5.3
+
+## Features
+
+* Add signing-config create command (#4280)
+* Allow multiple services to be specified for trusted-root create (#4285)
+* feat: Add OCI 1.1+ experimental support to tree (#4205)
+* Add validity period end for trusted-root create (#4271)
+
+## Bug Fixes
+
+* Fix cert verification logic for trusted-root/SCTs (#4294)
+* force when copying the latest image to overwrite (#4298)
+* avoid double-loading trustedroot from file (#4264)
+
+# v2.5.2
+
+## Bug Fixes
+
+* Do not load trusted root when CT env key is set
+
+## Documentation
+
+* docs: improve doc for --no-upload option (#4206)
+
+# v2.5.1
+
+## Features
+
+* Add Rekor v2 support for trusted-root create (#4242)
+* Add baseUrl and Uri to trusted-root create command
+* Upgrade to TUF v2 client with trusted root
+* Don't verify SCT for a private PKI cert (#4225)
+* Bump TSA library to relax EKU chain validation rules (#4219)
+
+## Bug Fixes
+
+* Bump sigstore-go to pick up log index=0 fix (#4162)
+* remove unused recursive flag on attest command (#4187)
+
+## Docs
+
+* Fix indentation in `verify-blob` cmd examples (#4160)
+
+## Releases
+
+* ensure we copy the latest tags on each release (#4157)
+
+## Contributors
+
+* arthurus-rex
+* Babak K. Shandiz
+* Bob Callaway
+* Carlos Tadeu Panato Junior
+* Colleen Murphy
+* Dmitry Savintsev
+* Emmanuel Ferdman
+* Hayden B
+* Ville Skyttä
+
+# v2.5.0
+
+v2.5.0 includes an implementation of the new bundle specification,
+attesting and verifying OCI image attestations uploaded as OCI artifacts.
+This feature is currently gated behind the `--new-bundle-format` flag
+when running `cosign attest`.
+
+## Features
+
+* Add support for new bundle specification for attesting/verifying OCI image attestations (#3889)
+* Feat/non filename completions (#4115)
+* Add TSA certificate related flags and fields for cosign attest (#4079)
+
+## Fixes
+
+* cmd/cosign/cli: fix typo in ignoreTLogMessage (#4111)
+* Fix replace with compliant image mediatype (#4077)
+
+## Contributors
+
+* Bob Callaway
+* Carlos Tadeu Panato Junior
+* Cody Soyland
+* Dmitry Savintsev
+* Hayden B
+* Ramon Petgrave
+* Riccardo Schirone
+* Stef Graces
+* Ville Skyttä
+
+# v2.4.3
+
+## Features
+
+* Bump sigstore/sigstore to support KMS plugins (#4073)
+* Enable fetching signatures without remote get. (#4047)
+* Feat/file flag completion improvements (#4028)
+* Update builder to use go1.23.6 (#4052)
+
+## Bug Fixes
+
+* fix parsing error in --only for cosign copy (#4049)
+
+## Cleanup
+
+* Refactor verifyNewBundle into library function (#4013)
+* fix comment typo and imports order (#4061)
+* sync comment with parameter name in function signature (#4063)
+* sort properly Go imports (#4071)
+
+## Contributors
+
+* Bob Callaway
+* Carlos Tadeu Panato Junior
+* Cody Soyland
+* Dmitry Savintsev
+* Hayden B
+* Tomasz Janiszewski
+* Ville Skyttä
+
+# v2.4.2
+
+## Features
+
+* Updated open-policy-agent to 1.1.0 library (#4036)
+  - Note that only Rego v0 policies are supported at this time
+* Add UseSignedTimestamps to CheckOpts, refactor TSA options (#4006)
+* Add support for verifying root checksum in cosign initialize (#3953)
+* Detect if user supplied a valid protobuf bundle (#3931)
+* Add a log message if user doesn't provide `--trusted-root` (#3933)
+* Support mTLS towards container registry (#3922)
+* Add bundle create helper command (#3901)
+* Add trusted-root create helper command (#3876)
+
+## Bug Fixes
+
+* fix: set tls config while retaining other fields from default http transport (#4007)
+* policy fuzzer: ignore known panics (#3993)
+* Fix for multiple WithRemote options (#3982)
+* Add nightly conformance test workflow (#3979)
+* Fix copy --only for signatures + update/align docs (#3904)
+
+## Documentation
+
+* Remove usage.md from spec, point to client spec (#3918)
+* move reference from gcr to ghcr (#3897)
+
+## Contributors
+
+* AdamKorcz
+* Aditya Sirish
+* Bob Callaway
+* Carlos Tadeu Panato Junior
+* Cody Soyland
+* Colleen Murphy
+* Hayden B
+* Jussi Kukkonen
+* Marco Franssen
+* Nianyu Shen
+* Slavek Kabrda
+* Søren Juul
+* Warren Hodgkinson
+* Zach Steindler
+
+# v2.4.1
+
+v2.4.1 largely contains bug fixes and updates dependencies.
+
+## Features
+
+* Added fuzzing coverage to multiple packages
+
+## Bug Fixes
+* Fix bug in attest-blob when using a timestamp authority with new bundles (#3877)
+* fix: documentation link for installation guide (#3884)
+
+## Contributors
+
+* AdamKorcz
+* Bob Callaway
+* Carlos Tadeu Panato Junior
+* Hayden B
+* Hemil K
+* Sota Sugiura
+* Zach Steindler
+
 # v2.4.0
 
 v2.4.0 begins the modernization of the Cosign client, which includes:

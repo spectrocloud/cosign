@@ -16,8 +16,6 @@
 package signed
 
 import (
-	"errors"
-
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 
 	"github.com/sigstore/cosign/v2/pkg/oci"
@@ -70,5 +68,5 @@ func (*index) Attestations() (oci.Signatures, error) {
 
 // Attestations implements oci.SignedImage
 func (*index) Attachment(name string) (oci.File, error) { //nolint: revive
-	return nil, errors.New("unimplemented")
+	return nil, nil
 }

@@ -18,9 +18,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"os"
 
+	"github.com/secure-systems-lab/go-securesystemslib/dsse"
 	"github.com/sigstore/cosign/v2/pkg/cosign/env"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/tuf"
@@ -74,7 +77,7 @@ func isTufTargetExist(ctx context.Context, name string) (bool, error) {
 // TUF root. If expired, makes a network call to retrieve the updated targets.
 // By default, the certificates come from TUF, but you can override this for test
 // purposes by using an env variable `SIGSTORE_TSA_CERTIFICATE_FILE` or a file path
-// specified in `TSACertChainPath`. If using an alternate, the file should be in PEM format.
+// specified in `certChainPath`. If using an alternate, the file should be in PEM format.
 func GetTSACerts(ctx context.Context, certChainPath string, fn GetTargetStub) (*TSACertificates, error) {
 	altTSACert := env.Getenv(env.VariableSigstoreTSACertificateFile)
 
@@ -151,4 +154,16 @@ func splitPEMCertificateChain(pem []byte) (leaves, intermediates, roots []*x509.
 	}
 
 	return leaves, intermediates, roots, nil
+}
+
+func GetDSSESigBytes(envelopeBytes []byte) ([]byte, error) {
+	var envelope dsse.Envelope
+	err := json.Unmarshal(envelopeBytes, &envelope)
+	if err != nil {
+		return nil, err
+	}
+	if len(envelope.Signatures) == 0 {
+		return nil, fmt.Errorf("envelope has no signatures")
+	}
+	return base64.StdEncoding.DecodeString(envelope.Signatures[0].Sig)
 }

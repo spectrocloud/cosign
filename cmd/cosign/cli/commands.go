@@ -19,15 +19,14 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/google/go-containerregistry/pkg/logs"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"sigs.k8s.io/release-utils/version"
-
 	cranecmd "github.com/google/go-containerregistry/cmd/crane/cmd"
+	"github.com/google/go-containerregistry/pkg/logs"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/templates"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	cobracompletefig "github.com/withfig/autocomplete-tools/integrations/cobra"
+	"sigs.k8s.io/release-utils/version"
 )
 
 var (
@@ -95,6 +94,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(Attach())
 	cmd.AddCommand(Attest())
 	cmd.AddCommand(AttestBlob())
+	cmd.AddCommand(Bundle())
 	cmd.AddCommand(Clean())
 	cmd.AddCommand(Debug())
 	cmd.AddCommand(Tree())
@@ -107,6 +107,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(ImportKeyPair())
 	cmd.AddCommand(Initialize())
 	cmd.AddCommand(Load())
+	cmd.AddCommand(RemoteLoad())
 	cmd.AddCommand(Manifest())
 	cmd.AddCommand(PIVTool())
 	cmd.AddCommand(PKCS11Tool())
@@ -120,6 +121,8 @@ func New() *cobra.Command {
 	cmd.AddCommand(VerifyBlob())
 	cmd.AddCommand(VerifyBlobAttestation())
 	cmd.AddCommand(Triangulate())
+	cmd.AddCommand(TrustedRoot())
+	cmd.AddCommand(SigningConfig())
 	cmd.AddCommand(Env())
 	cmd.AddCommand(version.WithFont("starwars"))
 
