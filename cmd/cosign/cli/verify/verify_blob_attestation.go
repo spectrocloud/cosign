@@ -178,7 +178,7 @@ func (c *VerifyBlobAttestationCommand) Exec(ctx context.Context, artifactPath st
 			if err != nil {
 				return err
 			}
-			err = payloadsize.CheckSize(uint64(fileInfo.Size()))
+			err = payloadsize.CheckSize(uint64(fileInfo.Size())) // #nosec G115 -- file size is non-negative
 			if err != nil {
 				return err
 			}

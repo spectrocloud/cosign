@@ -514,7 +514,7 @@ func VerifyTLogEntryOffline(ctx context.Context, e *models.LogEntryAnon, rekorPu
 	leafHash := rfc6962.DefaultHasher.HashLeaf(entryBytes)
 
 	// Verify the inclusion proof.
-	if err := proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(*e.Verification.InclusionProof.LogIndex), uint64(*e.Verification.InclusionProof.TreeSize),
+	if err := proof.VerifyInclusion(rfc6962.DefaultHasher, uint64(*e.Verification.InclusionProof.LogIndex), uint64(*e.Verification.InclusionProof.TreeSize), // #nosec G115 -- log index and tree size are non-negative
 		leafHash, hashes, rootHash); err != nil {
 		return fmt.Errorf("verifying inclusion proof: %w", err)
 	}
