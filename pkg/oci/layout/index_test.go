@@ -17,9 +17,9 @@ package layout
 import (
 	"testing"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/types"
-	"github.com/google/go-containerregistry/pkg/v1/validate"
+	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/types"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/validate"
 )
 
 func TestIndex(t *testing.T) {

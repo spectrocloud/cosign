@@ -18,9 +18,9 @@ package remote
 import (
 	"fmt"
 
-	"github.com/google/go-containerregistry/pkg/authn"
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/spectrocloud/go-containerregistry/pkg/authn"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/remote"
 	"github.com/sigstore/cosign/v2/pkg/cosign/env"
 )
 

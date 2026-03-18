@@ -34,7 +34,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/name"
+	googlename "github.com/google/go-containerregistry/pkg/name"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	"github.com/sigstore/cosign/v2/internal/pkg/cosign/fulcio/fulcioroots"
 	"github.com/sigstore/cosign/v2/internal/test"
@@ -160,7 +160,7 @@ func TestPrintVerification(t *testing.T) {
 
 	// Generate the payload for the image, and check the digest.
 	b := bytes.Buffer{}
-	dig3, err := name.NewDigest("gcr.io/baz/baz@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", name.StrictValidation)
+	dig3, err := googlename.NewDigest("gcr.io/baz/baz@sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", googlename.StrictValidation)
 	if err != nil {
 		t.Fatalf("Error creating test dig3.")
 	}

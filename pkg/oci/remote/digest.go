@@ -15,7 +15,7 @@
 package remote
 
 import (
-	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
 )
 
 // ResolveDigest returns the digest of the image at the reference.

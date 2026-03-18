@@ -42,11 +42,11 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-containerregistry/pkg/authn"
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/registry"
-	"github.com/google/go-containerregistry/pkg/v1/random"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/spectrocloud/go-containerregistry/pkg/authn"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
+	"github.com/spectrocloud/go-containerregistry/pkg/registry"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/random"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/remote"
 	"github.com/secure-systems-lab/go-securesystemslib/encrypted"
 
 	// Initialize all known client auth plugins

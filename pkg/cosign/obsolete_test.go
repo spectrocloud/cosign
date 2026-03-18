@@ -19,7 +19,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
 	"github.com/sigstore/cosign/v2/internal/ui"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

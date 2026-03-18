@@ -16,9 +16,9 @@
 package remote
 
 import (
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
+	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/remote"
 )
 
 // Referrers fetches references using registry options.

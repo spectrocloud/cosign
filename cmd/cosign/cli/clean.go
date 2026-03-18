@@ -22,9 +22,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/remote"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	"github.com/sigstore/cosign/v2/internal/ui"
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"

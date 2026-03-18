@@ -15,7 +15,7 @@
 
 package oci
 
-import "github.com/google/go-containerregistry/pkg/v1/types"
+import "github.com/spectrocloud/go-containerregistry/pkg/v1/types"
 
 // File is a degenerate form of SignedImage that stores a single file as a v1.Layer
 type File interface {

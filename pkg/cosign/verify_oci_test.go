@@ -22,11 +22,11 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/registry"
-	"github.com/google/go-containerregistry/pkg/v1/empty"
-	"github.com/google/go-containerregistry/pkg/v1/random"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
+	"github.com/spectrocloud/go-containerregistry/pkg/registry"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/empty"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/random"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/remote"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 
