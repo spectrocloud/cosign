@@ -19,8 +19,8 @@ import (
 	"errors"
 	"fmt"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/mutate"
+	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/mutate"
 	"github.com/sigstore/cosign/v2/pkg/oci"
 	"github.com/sigstore/cosign/v2/pkg/oci/empty"
 	"github.com/sigstore/cosign/v2/pkg/oci/signed"

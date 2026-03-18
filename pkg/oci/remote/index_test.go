@@ -18,13 +18,13 @@ package remote
 import (
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/empty"
-	"github.com/google/go-containerregistry/pkg/v1/mutate"
-	"github.com/google/go-containerregistry/pkg/v1/random"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
+	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/empty"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/mutate"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/random"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/remote"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/types"
 	"github.com/sigstore/cosign/v2/pkg/oci"
 )
 

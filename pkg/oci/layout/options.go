@@ -14,7 +14,7 @@
 
 package layout
 
-import v1 "github.com/google/go-containerregistry/pkg/v1"
+import v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
 
 const (
 	SignatureTagSuffix   = "sig"

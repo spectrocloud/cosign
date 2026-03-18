@@ -18,7 +18,8 @@ package cosign
 import (
 	"context"
 
-	"github.com/google/go-containerregistry/pkg/name"
+	googlename "github.com/google/go-containerregistry/pkg/name"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
 	"github.com/sigstore/cosign/v2/internal/ui"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
 )
@@ -27,7 +28,11 @@ import (
 // the signature if no payload is provided by the user.
 // DO NOT ADD ANY NEW CALLERS OF THIS.
 func ObsoletePayload(ctx context.Context, digestedImage name.Digest) ([]byte, error) {
-	blob, err := (&payload.Cosign{Image: digestedImage}).MarshalJSON()
+	gDigest, err := googlename.NewDigest(digestedImage.Name())
+	if err != nil {
+		return nil, err
+	}
+	blob, err := (&payload.Cosign{Image: gDigest}).MarshalJSON()
 	if err != nil {
 		return nil, err
 	}

@@ -15,7 +15,7 @@
 
 package oci
 
-import v1 "github.com/google/go-containerregistry/pkg/v1"
+import v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
 
 // SignedImage represents an OCI Image, complemented with accessors
 // for retrieving signed metadata associated with that image.

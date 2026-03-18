@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
+	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
 	"github.com/spf13/cobra"

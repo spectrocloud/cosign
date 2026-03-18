@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/types"
 
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	cremote "github.com/sigstore/cosign/v2/pkg/cosign/remote"

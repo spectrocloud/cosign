@@ -19,10 +19,10 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/partial"
-	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
+	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/partial"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/sigstore/cosign/v2/pkg/oci"
 )
 

@@ -19,8 +19,8 @@ import (
 	"fmt"
 	"os"
 
-	cranecmd "github.com/google/go-containerregistry/cmd/crane/cmd"
-	"github.com/google/go-containerregistry/pkg/logs"
+	cranecmd "github.com/spectrocloud/go-containerregistry/cmd/crane/cmd"
+	"github.com/spectrocloud/go-containerregistry/pkg/logs"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/templates"
 	"github.com/spf13/cobra"

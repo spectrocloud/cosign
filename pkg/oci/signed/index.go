@@ -16,7 +16,7 @@
 package signed
 
 import (
-	v1 "github.com/google/go-containerregistry/pkg/v1"
+	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
 
 	"github.com/sigstore/cosign/v2/pkg/oci"
 	"github.com/sigstore/cosign/v2/pkg/oci/empty"

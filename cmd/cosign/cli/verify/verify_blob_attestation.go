@@ -28,7 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
+	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/rekor"
 	internal "github.com/sigstore/cosign/v2/internal/pkg/cosign"

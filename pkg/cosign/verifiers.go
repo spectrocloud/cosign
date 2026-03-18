@@ -21,7 +21,7 @@ import (
 	"errors"
 	"fmt"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
+	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
 	"github.com/in-toto/in-toto-golang/in_toto"
 	"github.com/secure-systems-lab/go-securesystemslib/dsse"
 

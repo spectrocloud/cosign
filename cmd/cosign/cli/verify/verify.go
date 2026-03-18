@@ -28,7 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
 	"github.com/in-toto/in-toto-golang/in_toto"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/fulcio"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
