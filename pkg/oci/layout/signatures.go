@@ -18,7 +18,7 @@ package layout
 import (
 	"strings"
 
-	v1 "github.com/google/go-containerregistry/pkg/v1"
+	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
 	"github.com/sigstore/cosign/v2/pkg/oci"
 	"github.com/sigstore/cosign/v2/pkg/oci/empty"
 	"github.com/sigstore/cosign/v2/pkg/oci/internal/signature"

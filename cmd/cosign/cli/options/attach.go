@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/types"
 	ctypes "github.com/sigstore/cosign/v2/pkg/types"
 	"github.com/spf13/cobra"
 )

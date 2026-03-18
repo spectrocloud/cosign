@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/types"
 	cbundle "github.com/sigstore/cosign/v2/pkg/cosign/bundle"
 	ctypes "github.com/sigstore/cosign/v2/pkg/types"
 )

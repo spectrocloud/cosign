@@ -18,7 +18,7 @@ package empty
 import (
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
 )
 
 func TestSignedImage(t *testing.T) {

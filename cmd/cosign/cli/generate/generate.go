@@ -19,7 +19,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/google/go-containerregistry/pkg/name"
+	googlename "github.com/google/go-containerregistry/pkg/name"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
 	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
@@ -44,7 +45,11 @@ func GenerateCmd(ctx context.Context, regOpts options.RegistryOptions, imageRef 
 	// each access.
 	ref = digest
 
-	json, err := (&payload.Cosign{Image: digest, Annotations: annotations}).MarshalJSON()
+	gDigest, err := googlename.NewDigest(digest.Name())
+	if err != nil {
+		return err
+	}
+	json, err := (&payload.Cosign{Image: gDigest, Annotations: annotations}).MarshalJSON()
 	if err != nil {
 		return err
 	}

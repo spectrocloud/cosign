@@ -23,11 +23,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/go-containerregistry/pkg/name"
-	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/google/go-containerregistry/pkg/v1/static"
-	"github.com/google/go-containerregistry/pkg/v1/types"
+	"github.com/spectrocloud/go-containerregistry/pkg/name"
+	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/remote"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/static"
+	"github.com/spectrocloud/go-containerregistry/pkg/v1/types"
 	ociexperimental "github.com/sigstore/cosign/v2/internal/pkg/oci/remote"
 	"github.com/sigstore/cosign/v2/pkg/oci"
 	"github.com/sigstore/cosign/v2/pkg/oci/layout"
@@ -622,7 +622,7 @@ func WriteAttestationsReferrer(d name.Digest, se oci.SignedEntity, opts ...Optio
 // which is part of the OCI 1.1 Image Manifest spec but is unsupported by
 // go-containerregistry at this time.
 // See https://github.com/opencontainers/image-spec/blob/v1.1.0/manifest.md#image-manifest-property-descriptions
-// and https://github.com/google/go-containerregistry/pull/1931
+// and https://github.com/spectrocloud/go-containerregistry/pull/1931
 type referrerManifest struct {
 	v1.Manifest
 	ArtifactType string `json:"artifactType,omitempty"`
