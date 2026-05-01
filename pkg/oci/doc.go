@@ -14,5 +14,5 @@
 // limitations under the License.
 
 // Package oci holds functions and types intended to align and compose with
-// github.com/spectrocloud/go-containerregistry.
+// github.com/google/go-containerregistry.
 package oci
