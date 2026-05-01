@@ -3672,6 +3672,66 @@ func TestSaveLoad(t *testing.T) {
 	}
 }
 
+func TestSaveLoadBulk(t *testing.T) {
+	tests := []struct {
+		description     string
+		getSignedEntity func(t *testing.T, n string) (name.Reference, *remote.Descriptor, func())
+	}{
+		{
+			description:     "save and load multiple images with a registry",
+			getSignedEntity: mkimage,
+		},
+		{
+			description:     "save and load multiple image indexes with a registry",
+			getSignedEntity: mkimageindex,
+		},
+	}
+	for i, test := range tests {
+		t.Run(test.description, func(t *testing.T) {
+			regName, stop := reg(t)
+			defer stop()
+			keysDir := t.TempDir()
+
+			// Generate multiple image names
+			imageNames := []string{fmt.Sprintf("save-load-%d-1", i), fmt.Sprintf("save-load-%d-2", i)}
+
+			ctx := context.Background()
+			_, privKeyPath, pubKeyPath := keypair(t, keysDir)
+			imageDir := t.TempDir()
+
+			for _, imgName := range imageNames {
+				imgName := path.Join(regName, imgName)
+
+				_, _, cleanup := test.getSignedEntity(t, imgName)
+				defer cleanup()
+
+				// Now sign the image and verify it
+				ko := options.KeyOpts{KeyRef: privKeyPath, PassFunc: passFunc}
+				so := options.SignOptions{
+					Upload: true,
+				}
+				must(sign.SignCmd(ctx, ro, ko, so, []string{imgName}), t)
+				must(verify(pubKeyPath, imgName, true, nil, "", false), t)
+
+				// Save the image to a temp dir
+				must(cli.SaveCmd(ctx, options.SaveOptions{Directory: imageDir}, imgName), t)
+
+				// Verify the local image using a local key
+				must(verifyLocal(pubKeyPath, imageDir, true, nil, ""), t)
+			}
+			// Load the images from the temp dir into a registry
+			ro := options.RegistryOptions{
+				Name: regName,
+			}
+			must(cli.LoadCmd(ctx, options.LoadOptions{Directory: imageDir, Registry: ro}, ""), t)
+
+			// verify the new images
+			must(verify(pubKeyPath, path.Join(regName, imageNames[0]), true, nil, "", false), t)
+			must(verify(pubKeyPath, path.Join(regName, imageNames[1]), true, nil, "", false), t)
+		})
+	}
+}
+
 // TestSaveLoadAutoDetectFormat verifies that local image verification auto-detects
 // the signature format (v2 attached signatures vs v3 bundles) without requiring
 // explicit --new-bundle-format flag. This tests the fix for sigstore/cosign#4621.
