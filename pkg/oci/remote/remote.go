@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/cache"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
 	"github.com/google/go-containerregistry/pkg/v1/types"
@@ -77,6 +78,9 @@ func SignedEntity(ref name.Reference, options ...Option) (oci.SignedEntity, erro
 		if err != nil {
 			return nil, err
 		}
+		if o.CachePath != "" {
+			ii = cache.ImageIndex(ii, cache.NewFilesystemCache(o.CachePath))
+		}
 		return &index{
 			v1Index: ii,
 			ref:     ref.Context().Digest(got.Digest.String()),
@@ -87,6 +91,9 @@ func SignedEntity(ref name.Reference, options ...Option) (oci.SignedEntity, erro
 		i, err := got.Image()
 		if err != nil {
 			return nil, err
+		}
+		if o.CachePath != "" {
+			i = cache.Image(i, cache.NewFilesystemCache(o.CachePath))
 		}
 		return &image{
 			Image: i,
@@ -234,7 +241,7 @@ func (f *attached) Payload() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = payloadsize.CheckSize(uint64(size))
+	err = payloadsize.CheckSize(uint64(size)) // #nosec G115 -- size is non-negative
 	if err != nil {
 		return nil, err
 	}

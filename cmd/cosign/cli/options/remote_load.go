@@ -20,22 +20,20 @@ import (
 )
 
 // LoadOptions is the top level wrapper for the load command.
-type LoadOptions struct {
-	Directory string
-	Registry  RegistryOptions
+type RemoteLoadOptions struct {
+	Registry RegistryOptions
+	Platform string
 }
 
-var _ Interface = (*LoadOptions)(nil)
+var _ Interface = (*RemoteLoadOptions)(nil)
 
 // AddFlags implements Interface
-func (o *LoadOptions) AddFlags(cmd *cobra.Command) {
+func (o *RemoteLoadOptions) AddFlags(cmd *cobra.Command) {
 	o.Registry.AddFlags(cmd)
-	cmd.Flags().StringVar(&o.Directory, "dir", "",
-		"path to directory where the signed image is stored on disk")
-	_ = cmd.MarkFlagDirname("dir")
-	_ = cmd.MarkFlagRequired("dir")
 
 	cmd.Flags().StringVar(&o.Registry.Name, "registry", "",
-		"registry to use for bulk load")
+		"registry to use for remote load")
 	_ = cmd.Flags().SetAnnotation("registry", cobra.BashCompSubdirsInDir, []string{})
+	cmd.Flags().StringVar(&o.Platform, "platform", "",
+		"only load container image and its signatures for a specific platform image")
 }
