@@ -29,10 +29,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	googlename "github.com/google/go-containerregistry/pkg/name"
-	"github.com/spectrocloud/go-containerregistry/pkg/name"
-	v1 "github.com/spectrocloud/go-containerregistry/pkg/v1"
-	"github.com/spectrocloud/go-containerregistry/pkg/v1/remote"
+	"github.com/google/go-containerregistry/pkg/name"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
+	"github.com/google/go-containerregistry/pkg/v1/remote"
 	intotov1 "github.com/in-toto/attestation/go/v1"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/fulcio"
 	"github.com/sigstore/cosign/v2/cmd/cosign/cli/fulcio/fulcioverifier"
@@ -395,12 +394,8 @@ func signDigest(ctx context.Context, digest name.Digest, payload []byte, ko opti
 	var err error
 	// The payload can be passed to skip generation.
 	if len(payload) == 0 {
-		gDigest, gErr := googlename.NewDigest(digest.Name())
-		if gErr != nil {
-			return fmt.Errorf("converting digest: %w", gErr)
-		}
 		payload, err = (&sigPayload.Cosign{
-			Image:           gDigest,
+			Image:           digest,
 			ClaimedIdentity: signOpts.SignContainerIdentity,
 			Annotations:     annotations,
 		}).MarshalJSON()
