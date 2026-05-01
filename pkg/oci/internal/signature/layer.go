@@ -63,7 +63,7 @@ func (s *sigLayer) Payload() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = payloadsize.CheckSize(uint64(size))
+	err = payloadsize.CheckSize(uint64(size)) // #nosec G115 -- size is non-negative
 	if err != nil {
 		return nil, err
 	}
