@@ -45,6 +45,7 @@ import (
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag/conv"
+	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/empty"
 	ggcrlayout "github.com/google/go-containerregistry/pkg/v1/layout"
@@ -2122,7 +2123,7 @@ func TestHasLocalBundles_V2Signatures(t *testing.T) {
 	// Create a signed image with v2-style signatures (no bundle annotation)
 	si := createSignedImageWithSignatures(t, false /* withBundle */)
 	tmp := t.TempDir()
-	if err := layout.WriteSignedImage(tmp, si); err != nil {
+	if err := layout.WriteSignedImage(tmp, si, mustNameRef(t, "test.com/test"), nil); err != nil {
 		t.Fatalf("WriteSignedImage() = %v", err)
 	}
 
@@ -2146,7 +2147,7 @@ func TestHasLocalBundles_NoSignatures(t *testing.T) {
 	require.NoError(t, err)
 	si := signed.Image(img)
 	tmp := t.TempDir()
-	if err := layout.WriteSignedImage(tmp, si); err != nil {
+	if err := layout.WriteSignedImage(tmp, si, mustNameRef(t, "test.com/test"), nil); err != nil {
 		t.Fatalf("WriteSignedImage() = %v", err)
 	}
 
@@ -2215,7 +2216,7 @@ func createV3BundleLayout(t *testing.T) string {
 	si := signed.Image(img)
 
 	// Write the signed image with proper annotations
-	if err := layout.WriteSignedImage(tmp, si); err != nil {
+	if err := layout.WriteSignedImage(tmp, si, mustNameRef(t, "test.com/test"), nil); err != nil {
 		t.Fatalf("WriteSignedImage() = %v", err)
 	}
 
@@ -2284,7 +2285,7 @@ func createV3BundleLayout(t *testing.T) string {
 func TestHasLocalAttestationBundles_V2Attestations(t *testing.T) {
 	si := createSignedImageWithAttestations(t, false)
 	tmp := t.TempDir()
-	if err := layout.WriteSignedImage(tmp, si); err != nil {
+	if err := layout.WriteSignedImage(tmp, si, mustNameRef(t, "test.com/test"), nil); err != nil {
 		t.Fatalf("WriteSignedImage() = %v", err)
 	}
 
@@ -2312,7 +2313,7 @@ func TestHasLocalSigstoreBundles_OCIReferrers(t *testing.T) {
 	si := signed.Image(img)
 
 	// Write the signed image with proper annotations
-	if err := layout.WriteSignedImage(tmp, si); err != nil {
+	if err := layout.WriteSignedImage(tmp, si, mustNameRef(t, "test.com/test"), nil); err != nil {
 		t.Fatalf("WriteSignedImage() = %v", err)
 	}
 
@@ -2390,7 +2391,7 @@ func TestHasLocalSigstoreBundles_NoBlobsDir(t *testing.T) {
 	require.NoError(t, err)
 	si := signed.Image(img)
 
-	if err := layout.WriteSignedImage(tmp, si); err != nil {
+	if err := layout.WriteSignedImage(tmp, si, mustNameRef(t, "test.com/test"), nil); err != nil {
 		t.Fatalf("WriteSignedImage() = %v", err)
 	}
 
@@ -2414,7 +2415,7 @@ func TestHasLocalSigstoreBundles_ReferrerDifferentSubject(t *testing.T) {
 	require.NoError(t, err)
 	si := signed.Image(img)
 
-	if err := layout.WriteSignedImage(tmp, si); err != nil {
+	if err := layout.WriteSignedImage(tmp, si, mustNameRef(t, "test.com/test"), nil); err != nil {
 		t.Fatalf("WriteSignedImage() = %v", err)
 	}
 
@@ -2480,7 +2481,7 @@ func TestHasLocalSigstoreBundles_EmptyBlobsDir(t *testing.T) {
 	require.NoError(t, err)
 	si := signed.Image(img)
 
-	if err := layout.WriteSignedImage(tmp, si); err != nil {
+	if err := layout.WriteSignedImage(tmp, si, mustNameRef(t, "test.com/test"), nil); err != nil {
 		t.Fatalf("WriteSignedImage() = %v", err)
 	}
 
@@ -2508,7 +2509,7 @@ func TestGetLocalBundles_MissingBlobsDir(t *testing.T) {
 	require.NoError(t, err)
 	si := signed.Image(img)
 
-	if err := layout.WriteSignedImage(tmp, si); err != nil {
+	if err := layout.WriteSignedImage(tmp, si, mustNameRef(t, "test.com/test"), nil); err != nil {
 		t.Fatalf("WriteSignedImage() = %v", err)
 	}
 
@@ -2533,7 +2534,7 @@ func TestGetLocalBundles_ZeroBundles(t *testing.T) {
 	require.NoError(t, err)
 	si := signed.Image(img)
 
-	if err := layout.WriteSignedImage(tmp, si); err != nil {
+	if err := layout.WriteSignedImage(tmp, si, mustNameRef(t, "test.com/test"), nil); err != nil {
 		t.Fatalf("WriteSignedImage() = %v", err)
 	}
 
@@ -2550,4 +2551,13 @@ func TestGetLocalBundles_InvalidPath(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, hash)
 	assert.Nil(t, bundles)
+}
+
+func mustNameRef(t *testing.T, s string) name.Reference {
+	t.Helper()
+	ref, err := name.ParseReference(s)
+	if err != nil {
+		t.Fatalf("parsing reference %q: %v", s, err)
+	}
+	return ref
 }
