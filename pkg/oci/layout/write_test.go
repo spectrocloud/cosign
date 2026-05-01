@@ -36,10 +36,10 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/stream"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	"github.com/google/go-containerregistry/pkg/v1/validate"
-	"github.com/sigstore/cosign/v2/pkg/oci"
-	"github.com/sigstore/cosign/v2/pkg/oci/mutate"
-	"github.com/sigstore/cosign/v2/pkg/oci/signed"
-	"github.com/sigstore/cosign/v2/pkg/oci/static"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/mutate"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/signed"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/static"
 )
 
 func TestReadWrite(t *testing.T) {

@@ -29,10 +29,10 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/types"
 	in_toto_attest "github.com/in-toto/attestation/go/v1"
-	"github.com/sigstore/cosign/v3/pkg/cosign/attestation"
-	"github.com/sigstore/cosign/v3/pkg/cosign/bundle"
-	"github.com/sigstore/cosign/v3/pkg/oci"
-	"github.com/sigstore/cosign/v3/pkg/oci/static"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/attestation"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/bundle"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/static"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 

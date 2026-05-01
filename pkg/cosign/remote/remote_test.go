@@ -19,9 +19,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sigstore/cosign/v3/pkg/oci"
-	ociempty "github.com/sigstore/cosign/v3/pkg/oci/empty"
-	"github.com/sigstore/cosign/v3/pkg/oci/static"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	ociempty "github.com/spectrocloud/cosign/v3/pkg/oci/empty"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/static"
 )
 
 type mockOCISignatures struct {

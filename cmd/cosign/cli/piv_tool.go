@@ -20,8 +20,8 @@ package cli
 import (
 	"encoding/json"
 
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/pivcli"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/pivcli"
 	"github.com/spf13/cobra"
 )
 

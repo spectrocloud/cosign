@@ -22,10 +22,10 @@ import (
 	"io"
 
 	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/pkg/cosign"
-	"github.com/sigstore/cosign/v3/pkg/oci/platform"
-	ociremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/platform"
+	ociremote "github.com/spectrocloud/cosign/v3/pkg/oci/remote"
 )
 
 func AttestationCmd(ctx context.Context, regOpts options.RegistryOptions, attOptions options.AttestationDownloadOptions, imageRef string, out io.Writer) error {

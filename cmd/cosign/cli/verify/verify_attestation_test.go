@@ -19,7 +19,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
 )
 
 func TestVerifyAttestationMissingSubject(t *testing.T) {

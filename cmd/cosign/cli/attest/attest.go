@@ -24,15 +24,15 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/signcommon"
-	"github.com/sigstore/cosign/v3/pkg/cosign/attestation"
-	cbundle "github.com/sigstore/cosign/v3/pkg/cosign/bundle"
-	cremote "github.com/sigstore/cosign/v3/pkg/cosign/remote"
-	"github.com/sigstore/cosign/v3/pkg/oci/mutate"
-	ociremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
-	"github.com/sigstore/cosign/v3/pkg/oci/static"
-	"github.com/sigstore/cosign/v3/pkg/types"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/signcommon"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/attestation"
+	cbundle "github.com/spectrocloud/cosign/v3/pkg/cosign/bundle"
+	cremote "github.com/spectrocloud/cosign/v3/pkg/cosign/remote"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/mutate"
+	ociremote "github.com/spectrocloud/cosign/v3/pkg/oci/remote"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/static"
+	"github.com/spectrocloud/cosign/v3/pkg/types"
 )
 
 // nolint

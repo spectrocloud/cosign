@@ -21,11 +21,11 @@ import (
 	"fmt"
 
 	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/pkg/oci"
-	"github.com/sigstore/cosign/v3/pkg/oci/layout"
-	ociplatform "github.com/sigstore/cosign/v3/pkg/oci/platform"
-	ociremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/layout"
+	ociplatform "github.com/spectrocloud/cosign/v3/pkg/oci/platform"
+	ociremote "github.com/spectrocloud/cosign/v3/pkg/oci/remote"
 	"github.com/spf13/cobra"
 )
 

@@ -22,10 +22,10 @@ import (
 	"fmt"
 	"io"
 
-	icosign "github.com/sigstore/cosign/v3/internal/pkg/cosign"
-	"github.com/sigstore/cosign/v3/pkg/cosign"
-	"github.com/sigstore/cosign/v3/pkg/oci"
-	"github.com/sigstore/cosign/v3/pkg/oci/static"
+	icosign "github.com/spectrocloud/cosign/v3/internal/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/static"
 	"github.com/sigstore/sigstore/pkg/signature"
 )
 

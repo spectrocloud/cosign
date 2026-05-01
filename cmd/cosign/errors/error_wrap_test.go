@@ -19,7 +19,7 @@ import (
 	stderrors "errors"
 	"testing"
 
-	"github.com/sigstore/cosign/v3/cmd/cosign/errors"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/errors"
 )
 
 func TestWrapWithGenericCosignError(t *testing.T) {

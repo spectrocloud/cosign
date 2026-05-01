@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sigstore/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
 	prototrustroot "github.com/sigstore/protobuf-specs/gen/pb-go/trustroot/v1"
 	"github.com/sigstore/sigstore-go/pkg/root"
 )

@@ -25,10 +25,10 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/remote/transport"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/internal/ui"
-	"github.com/sigstore/cosign/v3/pkg/cosign/bundle"
-	ociremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/internal/ui"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/bundle"
+	ociremote "github.com/spectrocloud/cosign/v3/pkg/oci/remote"
 	"github.com/spf13/cobra"
 )
 

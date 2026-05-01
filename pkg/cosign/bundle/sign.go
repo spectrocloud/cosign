@@ -23,7 +23,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sigstore/cosign/v3/internal/ui"
+	"github.com/spectrocloud/cosign/v3/internal/ui"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/sign"
 	"github.com/sigstore/sigstore/pkg/signature"

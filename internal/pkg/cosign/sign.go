@@ -19,7 +19,7 @@ import (
 	"crypto"
 	"io"
 
-	"github.com/sigstore/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
 )
 
 // Signer signs payloads in the form of `oci.Signature`s

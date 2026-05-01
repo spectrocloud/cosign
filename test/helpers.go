@@ -51,12 +51,12 @@ import (
 	// Initialize all known client auth plugins
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	cliverify "github.com/sigstore/cosign/v3/cmd/cosign/cli/verify"
-	"github.com/sigstore/cosign/v3/pkg/cosign"
-	"github.com/sigstore/cosign/v3/pkg/cosign/env"
-	ociremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
-	sigs "github.com/sigstore/cosign/v3/pkg/signature"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	cliverify "github.com/spectrocloud/cosign/v3/cmd/cosign/cli/verify"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/env"
+	ociremote "github.com/spectrocloud/cosign/v3/pkg/oci/remote"
+	sigs "github.com/spectrocloud/cosign/v3/pkg/signature"
 	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/signature"
 )

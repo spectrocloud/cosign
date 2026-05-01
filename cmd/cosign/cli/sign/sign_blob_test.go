@@ -22,9 +22,9 @@ import (
 	"testing"
 
 	"github.com/secure-systems-lab/go-securesystemslib/encrypted"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/internal/test"
-	"github.com/sigstore/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/internal/test"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
 )
 
 func TestSignBlobCmd(t *testing.T) {

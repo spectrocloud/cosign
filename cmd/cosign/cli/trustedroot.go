@@ -18,8 +18,8 @@ package cli
 import (
 	"context"
 
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/trustedroot"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/trustedroot"
 	"github.com/spf13/cobra"
 )
 

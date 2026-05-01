@@ -21,8 +21,8 @@ import (
 	"io"
 
 	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
 )
 
 func SignatureCmd(ctx context.Context, regOpts options.RegistryOptions, imageRef string, out io.Writer) error {

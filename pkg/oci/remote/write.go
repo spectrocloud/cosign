@@ -30,11 +30,11 @@ import (
 	goremote "github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/types"
-	ociexperimental "github.com/sigstore/cosign/v3/internal/pkg/oci/remote"
-	"github.com/sigstore/cosign/v3/pkg/cosign/bundle"
-	"github.com/sigstore/cosign/v3/pkg/oci"
-	"github.com/sigstore/cosign/v3/pkg/oci/layout"
-	ctypes "github.com/sigstore/cosign/v3/pkg/types"
+	ociexperimental "github.com/spectrocloud/cosign/v3/internal/pkg/oci/remote"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/bundle"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/layout"
+	ctypes "github.com/spectrocloud/cosign/v3/pkg/types"
 	sgbundle "github.com/sigstore/sigstore-go/pkg/bundle"
 )
 

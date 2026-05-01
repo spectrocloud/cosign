@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/generate"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/sign"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/signcommon"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/generate"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/sign"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/signcommon"
 	"github.com/spf13/cobra"
 )
 

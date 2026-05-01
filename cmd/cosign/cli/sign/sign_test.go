@@ -21,9 +21,9 @@ import (
 	"testing"
 
 	intotov1 "github.com/in-toto/attestation/go/v1"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/generate"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/pkg/types"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/generate"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/pkg/types"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/structpb"
 )

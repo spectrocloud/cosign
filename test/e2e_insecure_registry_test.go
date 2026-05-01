@@ -29,13 +29,13 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/random"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/attest"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/initialize"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/sign"
-	cliverify "github.com/sigstore/cosign/v3/cmd/cosign/cli/verify"
-	"github.com/sigstore/cosign/v3/pkg/cosign"
-	ociremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/attest"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/initialize"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/sign"
+	cliverify "github.com/spectrocloud/cosign/v3/cmd/cosign/cli/verify"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
+	ociremote "github.com/spectrocloud/cosign/v3/pkg/oci/remote"
 )
 
 const (

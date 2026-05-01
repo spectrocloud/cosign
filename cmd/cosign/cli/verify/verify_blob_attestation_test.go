@@ -36,8 +36,8 @@ import (
 	"github.com/sigstore/sigstore/pkg/signature/dsse"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/pkg/cosign/bundle"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/bundle"
 )
 
 const pubkey = `-----BEGIN PUBLIC KEY-----

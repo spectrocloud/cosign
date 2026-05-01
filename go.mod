@@ -1,4 +1,4 @@
-module github.com/sigstore/cosign/v3
+module github.com/spectrocloud/cosign/v3
 
 go 1.25.7
 
@@ -18,6 +18,7 @@ require (
 	github.com/go-openapi/strfmt v0.26.0
 	github.com/go-openapi/swag/conv v0.25.5
 	github.com/go-piv/piv-go/v2 v2.5.0
+	github.com/gofrs/flock v0.13.0
 	github.com/google/certificate-transparency-go v1.3.3
 	github.com/google/go-cmp v0.7.0
 	github.com/google/go-containerregistry v0.21.3
@@ -53,6 +54,7 @@ require (
 	github.com/transparency-dev/merkle v0.0.2
 	github.com/withfig/autocomplete-tools/integrations/cobra v1.2.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
+	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.49.0
 	golang.org/x/oauth2 v0.36.0
 	golang.org/x/sync v0.20.0
@@ -278,7 +280,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.41.0 // indirect
 	go.opentelemetry.io/otel/trace v1.41.0 // indirect
 	go.step.sm/crypto v0.76.2 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect

@@ -32,9 +32,9 @@ import (
 
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag/conv"
-	"github.com/sigstore/cosign/v3/internal/ui"
-	"github.com/sigstore/cosign/v3/pkg/cosign/bundle"
-	"github.com/sigstore/cosign/v3/pkg/cosign/env"
+	"github.com/spectrocloud/cosign/v3/internal/ui"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/bundle"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/env"
 	"github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/rekor/pkg/generated/client/entries"
 	"github.com/sigstore/rekor/pkg/generated/models"

@@ -22,9 +22,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/sigstore/cosign/v3/pkg/oci"
-	"github.com/sigstore/cosign/v3/pkg/oci/mutate"
-	"github.com/sigstore/cosign/v3/pkg/oci/static"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/mutate"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/static"
 	"github.com/sigstore/sigstore/pkg/signature"
 )
 

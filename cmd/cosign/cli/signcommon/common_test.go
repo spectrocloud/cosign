@@ -25,9 +25,9 @@ import (
 	"testing"
 
 	"github.com/secure-systems-lab/go-securesystemslib/encrypted"
-	"github.com/sigstore/cosign/v3/internal/test"
-	"github.com/sigstore/cosign/v3/internal/ui"
-	"github.com/sigstore/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/internal/test"
+	"github.com/spectrocloud/cosign/v3/internal/ui"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/stretchr/testify/assert"
 )

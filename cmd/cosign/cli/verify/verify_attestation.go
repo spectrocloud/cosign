@@ -26,13 +26,13 @@ import (
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/internal/ui"
-	"github.com/sigstore/cosign/v3/pkg/cosign"
-	"github.com/sigstore/cosign/v3/pkg/cosign/cue"
-	"github.com/sigstore/cosign/v3/pkg/cosign/rego"
-	"github.com/sigstore/cosign/v3/pkg/oci"
-	"github.com/sigstore/cosign/v3/pkg/policy"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/internal/ui"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/cue"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/rego"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/policy"
 )
 
 // VerifyAttestationCommand verifies a signature on a supplied container image

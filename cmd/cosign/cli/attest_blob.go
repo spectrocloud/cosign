@@ -15,10 +15,10 @@
 package cli
 
 import (
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/attest"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/generate"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/signcommon"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/attest"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/generate"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/signcommon"
 	"github.com/spf13/cobra"
 )
 

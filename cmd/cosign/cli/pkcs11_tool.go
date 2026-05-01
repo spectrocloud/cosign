@@ -18,8 +18,8 @@
 package cli
 
 import (
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/pkcs11cli"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/pkcs11cli"
 	"github.com/spf13/cobra"
 )
 

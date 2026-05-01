@@ -21,8 +21,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/pkg/cosign/env"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/env"
 	"github.com/spf13/cobra"
 )
 

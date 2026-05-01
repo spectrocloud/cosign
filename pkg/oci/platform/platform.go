@@ -19,7 +19,7 @@ import (
 	"strings"
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/sigstore/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
 )
 
 var ErrRefNotMultiArch = fmt.Errorf("specified reference is not a multiarch image")

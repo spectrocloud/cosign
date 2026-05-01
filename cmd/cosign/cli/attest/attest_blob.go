@@ -30,11 +30,11 @@ import (
 	"time"
 
 	intotov1 "github.com/in-toto/attestation/go/v1"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/signcommon"
-	"github.com/sigstore/cosign/v3/pkg/cosign"
-	"github.com/sigstore/cosign/v3/pkg/cosign/attestation"
-	cbundle "github.com/sigstore/cosign/v3/pkg/cosign/bundle"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/signcommon"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/attestation"
+	cbundle "github.com/spectrocloud/cosign/v3/pkg/cosign/bundle"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 )

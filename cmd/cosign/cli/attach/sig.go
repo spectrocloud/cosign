@@ -24,12 +24,12 @@ import (
 	"path/filepath"
 
 	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/sigstore/cosign/v3/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v3/pkg/cosign"
-	"github.com/sigstore/cosign/v3/pkg/cosign/bundle"
-	"github.com/sigstore/cosign/v3/pkg/oci/mutate"
-	ociremote "github.com/sigstore/cosign/v3/pkg/oci/remote"
-	"github.com/sigstore/cosign/v3/pkg/oci/static"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/bundle"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/mutate"
+	ociremote "github.com/spectrocloud/cosign/v3/pkg/oci/remote"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/static"
 	sgbundle "github.com/sigstore/sigstore-go/pkg/bundle"
 )
 

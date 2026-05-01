@@ -24,8 +24,8 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/secure-systems-lab/go-securesystemslib/dsse"
 
-	"github.com/sigstore/cosign/v3/pkg/cosign/attestation"
-	"github.com/sigstore/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/attestation"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
 )
 

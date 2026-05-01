@@ -23,8 +23,8 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 
-	"github.com/sigstore/cosign/v3/pkg/cosign/env"
-	"github.com/sigstore/cosign/v3/pkg/providers"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/env"
+	"github.com/spectrocloud/cosign/v3/pkg/providers"
 )
 
 func init() {
