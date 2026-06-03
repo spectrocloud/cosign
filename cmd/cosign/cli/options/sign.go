@@ -29,6 +29,7 @@ type SignOptions struct {
 	OutputSignature         string // TODO: this should be the root output file arg.
 	OutputPayload           string
 	OutputCertificate       string
+	BundlePath              string
 	PayloadPath             string
 	Recursive               bool
 	Attachment              string
@@ -40,7 +41,7 @@ type SignOptions struct {
 	TSAServerName           string
 	TSAServerURL            string
 	IssueCertificate        bool
-	SignContainerIdentity   string
+	SignContainerIdentities []string
 	RecordCreationTimestamp bool
 	NewBundleFormat         bool
 	UseSigningConfig        bool
@@ -89,6 +90,8 @@ func (o *SignOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&o.OutputSignature, "output-signature", "",
 		"write the signature to FILE")
 	_ = cmd.MarkFlagFilename("output-signature", signatureExts...)
+	_ = cmd.Flags().MarkDeprecated("output-signature", "please use --bundle to provide the output bundle location, which will include the signature")
+
 	cmd.Flags().StringVar(&o.OutputPayload, "output-payload", "",
 		"write the signed payload to FILE")
 	// _ = cmd.MarkFlagFilename("output-payload") // no typical extensions
@@ -96,6 +99,11 @@ func (o *SignOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&o.OutputCertificate, "output-certificate", "",
 		"write the certificate to FILE")
 	_ = cmd.MarkFlagFilename("output-certificate", certificateExts...)
+	_ = cmd.Flags().MarkDeprecated("output-certificate", "please use --bundle to provide the output bundle location, which will include the certificate")
+
+	cmd.Flags().StringVar(&o.BundlePath, "bundle", "",
+		"write everything required to verify the image to FILE")
+	_ = cmd.MarkFlagFilename("bundle", bundleExts...)
 
 	cmd.Flags().StringVar(&o.PayloadPath, "payload", "",
 		"path to a payload file to use rather than generating one")
@@ -113,6 +121,7 @@ func (o *SignOptions) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&o.TlogUpload, "tlog-upload", true,
 		"whether or not to upload to the tlog")
+	_ = cmd.Flags().MarkDeprecated("tlog-upload", "prefer using a --signing-config file with no transparency log services")
 
 	cmd.Flags().StringVar(&o.TSAClientCACert, "timestamp-client-cacert", "",
 		"path to the X.509 CA certificate file in PEM format to be used for the connection to the TSA Server")
@@ -136,17 +145,16 @@ func (o *SignOptions) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&o.IssueCertificate, "issue-certificate", false,
 		"issue a code signing certificate from Fulcio, even if a key is provided")
+	_ = cmd.Flags().MarkDeprecated("issue-certificate", "support for this flag will be removed in the future")
 
-	cmd.Flags().StringVar(&o.SignContainerIdentity, "sign-container-identity", "",
-		"manually set the .critical.docker-reference field for the signed identity, which is useful when image proxies are being used where the pull reference should match the signature")
+	cmd.Flags().StringSliceVar(&o.SignContainerIdentities, "sign-container-identity", nil,
+		"manually set the .critical.docker-reference field for the signed identity, which is useful when image proxies are being used where the pull reference should match the signature, this flag is comma delimited. ex: --sign-container-identity=identity1,identity2")
 
 	cmd.Flags().BoolVar(&o.RecordCreationTimestamp, "record-creation-timestamp", false, "set the createdAt timestamp in the signature artifact to the time it was created; by default, cosign sets this to the zero value")
 
-	// TODO: have this default to true as a breaking change
-	cmd.Flags().BoolVar(&o.NewBundleFormat, "new-bundle-format", false, "expect the signature/attestation to be packaged in a Sigstore bundle")
+	cmd.Flags().BoolVar(&o.NewBundleFormat, "new-bundle-format", true, "expect the signature/attestation to be packaged in a Sigstore bundle")
 
-	// TODO: have this default to true as a breaking change
-	cmd.Flags().BoolVar(&o.UseSigningConfig, "use-signing-config", false,
+	cmd.Flags().BoolVar(&o.UseSigningConfig, "use-signing-config", true,
 		"whether to use a TUF-provided signing config for the service URLs. Must set --new-bundle-format, which will store verification material in the new format")
 
 	cmd.Flags().StringVar(&o.SigningConfigPath, "signing-config", "",

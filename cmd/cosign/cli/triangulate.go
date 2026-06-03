@@ -18,8 +18,8 @@ package cli
 import (
 	"flag"
 
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/triangulate"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/triangulate"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +27,7 @@ func Triangulate() *cobra.Command {
 	o := &options.TriangulateOptions{}
 
 	cmd := &cobra.Command{
+		Deprecated:       "instead you can use:\n  - \"oras discover\" will show referring artifacts that exist\n  - \"cosign tree\" will show referring artifacts and old image references",
 		Use:              "triangulate",
 		Short:            "Outputs the located cosign image reference. This is the location where cosign stores the specified artifact type.",
 		Example:          "  cosign triangulate <IMAGE>",

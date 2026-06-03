@@ -18,7 +18,7 @@ package options
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/sigstore/cosign/v2/internal/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/internal/pkg/cosign"
 )
 
 type CommonVerifyOptions struct {
@@ -37,7 +37,8 @@ type CommonVerifyOptions struct {
 
 func (o *CommonVerifyOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&o.Offline, "offline", false,
-		"only allow offline verification")
+		"only verify an artifact's inclusion in a transparency log using a provided proof, rather than querying the log. May still include network requests to retrieve service keys from a TUF repository")
+	_ = cmd.Flags().MarkDeprecated("offline", "To verify in an airgapped environment, provide a --bundle with the signature and verification material, and a --trusted-root file with the service keys and certificates")
 
 	cmd.Flags().StringVar(&o.TSACertChainPath, "timestamp-certificate-chain", "",
 		"path to PEM-encoded certificate chain file for the RFC3161 timestamp authority. Must contain the root CA certificate. "+
@@ -62,8 +63,7 @@ func (o *CommonVerifyOptions) AddFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&o.TrustedRootPath, "trusted-root", "",
 		"Path to a Sigstore TrustedRoot JSON file. Requires --new-bundle-format to be set.")
 
-	// TODO: have this default to true as a breaking change
-	cmd.Flags().BoolVar(&o.NewBundleFormat, "new-bundle-format", false,
+	cmd.Flags().BoolVar(&o.NewBundleFormat, "new-bundle-format", true,
 		"expect the signature/attestation to be packaged in a Sigstore bundle")
 }
 
@@ -206,6 +206,7 @@ func (o *VerifyBlobOptions) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&o.RFC3161TimestampPath, "rfc3161-timestamp", "",
 		"path to RFC3161 timestamp FILE")
+	_ = cmd.Flags().MarkDeprecated("rfc3161-timestamp", "please use --bundle to provide the output bundle location, which will include the signed timestamp")
 }
 
 // VerifyDockerfileOptions is the top level wrapper for the `dockerfile verify` command.
@@ -270,6 +271,7 @@ func (o *VerifyBlobAttestationOptions) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&o.RFC3161TimestampPath, "rfc3161-timestamp", "",
 		"path to RFC3161 timestamp FILE")
+	_ = cmd.Flags().MarkDeprecated("rfc3161-timestamp", "please use --bundle to provide the output bundle location, which will include the signed timestamp")
 
 	cmd.Flags().StringVar(&o.Digest, "digest", "",
 		"Digest to use for verifying in-toto subject (instead of providing a blob)")

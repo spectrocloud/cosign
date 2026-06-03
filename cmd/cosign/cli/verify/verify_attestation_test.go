@@ -1,4 +1,4 @@
-// Copyright 2022 the Sigstore Authors.
+// Copyright 2022 The Sigstore Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,9 +16,10 @@ package verify
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
 )
 
 func TestVerifyAttestationMissingSubject(t *testing.T) {
@@ -50,5 +51,62 @@ func TestVerifyAttestationMissingIssuer(t *testing.T) {
 	err := verifyAttestation.Exec(ctx, []string{"foo", "bar", "baz"})
 	if err == nil {
 		t.Fatal("verifyAttestation expected 'need --certificate-oidc-issuer'")
+	}
+}
+
+func TestVerifyAttestationMutuallyExclusiveFlags(t *testing.T) {
+	ctx := context.Background()
+	tts := []struct {
+		name          string
+		cmd           VerifyAttestationCommand
+		expectedError error
+	}{
+		{
+			name: "both key and cert identity",
+			cmd: VerifyAttestationCommand{
+				KeyRef: "key.pub",
+				CertVerifyOptions: options.CertVerifyOptions{
+					CertIdentity: "hello@foo.com",
+				},
+			},
+			expectedError: &options.KeyAndIdentityParseError{},
+		},
+		{
+			name: "both key and cert identity regexp",
+			cmd: VerifyAttestationCommand{
+				KeyRef: "key.pub",
+				CertVerifyOptions: options.CertVerifyOptions{
+					CertIdentityRegexp: "^.*@foo.com$",
+				},
+			},
+			expectedError: &options.KeyAndIdentityParseError{},
+		},
+		{
+			name: "both cert identity and cert identity regexp",
+			cmd: VerifyAttestationCommand{
+				CertVerifyOptions: options.CertVerifyOptions{
+					CertIdentity:       "hello@foo.com",
+					CertIdentityRegexp: "^.*@foo.com$",
+				},
+			},
+			expectedError: &options.KeyAndIdentityParseError{},
+		},
+		{
+			name: "both key and security key",
+			cmd: VerifyAttestationCommand{
+				KeyRef: "key.pub",
+				Sk:     true,
+			},
+			expectedError: &options.KeyParseError{},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cmd.Exec(ctx, []string{"foo", "bar", "baz"})
+			if !errors.Is(err, tt.expectedError) {
+				t.Fatalf("expected %T, got: %T, %v", tt.expectedError, err, err)
+			}
+		})
 	}
 }

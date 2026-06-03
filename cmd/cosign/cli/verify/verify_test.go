@@ -27,6 +27,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -35,13 +36,13 @@ import (
 	"testing"
 
 	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v2/internal/pkg/cosign/fulcio/fulcioroots"
-	"github.com/sigstore/cosign/v2/internal/test"
-	"github.com/sigstore/cosign/v2/internal/ui"
-	"github.com/sigstore/cosign/v2/pkg/cosign"
-	"github.com/sigstore/cosign/v2/pkg/oci"
-	"github.com/sigstore/cosign/v2/pkg/oci/static"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/internal/pkg/cosign/fulcio/fulcioroots"
+	"github.com/spectrocloud/cosign/v3/internal/test"
+	"github.com/spectrocloud/cosign/v3/internal/ui"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/static"
 	"github.com/sigstore/sigstore/pkg/signature/payload"
 	"github.com/stretchr/testify/assert"
 )
@@ -227,7 +228,11 @@ func TestPrintVerification(t *testing.T) {
 }
 
 func appendSlices(slices [][]byte) []byte {
-	var tmp []byte
+	totalLen := 0
+	for _, s := range slices {
+		totalLen += len(s)
+	}
+	tmp := make([]byte, 0, totalLen)
 	for _, s := range slices {
 		tmp = append(tmp, s...)
 	}
@@ -261,6 +266,55 @@ func TestVerifyCertMissingIssuer(t *testing.T) {
 	err := verifyCommand.Exec(ctx, []string{"foo", "bar", "baz"})
 	if err == nil {
 		t.Fatal("verify expected 'need --certificate-oidc-issuer'")
+	}
+}
+
+func TestVerifyMutuallyExclusiveFlags(t *testing.T) {
+	ctx := context.Background()
+	tts := []struct {
+		name          string
+		cmd           VerifyCommand
+		expectedError error
+	}{
+		{
+			name: "both key and cert identity",
+			cmd: VerifyCommand{
+				KeyRef: "key.pub",
+				CertVerifyOptions: options.CertVerifyOptions{
+					CertIdentity: "hello@foo.com",
+				},
+			},
+			expectedError: &options.KeyAndIdentityParseError{},
+		},
+		{
+			name: "both key and cert identity regexp",
+			cmd: VerifyCommand{
+				KeyRef: "key.pub",
+				CertVerifyOptions: options.CertVerifyOptions{
+					CertIdentityRegexp: "^.*@foo.com$",
+				},
+			},
+			expectedError: &options.KeyAndIdentityParseError{},
+		},
+		{
+			name: "both cert identity and cert identity regexp",
+			cmd: VerifyCommand{
+				CertVerifyOptions: options.CertVerifyOptions{
+					CertIdentity:       "hello@foo.com",
+					CertIdentityRegexp: "^.*@foo.com$",
+				},
+			},
+			expectedError: &options.KeyAndIdentityParseError{},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cmd.Exec(ctx, []string{"foo", "bar", "baz"})
+			if !errors.Is(err, tt.expectedError) {
+				t.Fatalf("expected %T, got: %T, %v", tt.expectedError, err, err)
+			}
+		})
 	}
 }
 
@@ -351,7 +405,7 @@ func TestTransformOutputSuccess(t *testing.T) {
 	stmt := `{
 	  "_type": "https://in-toto.io/Statement/v0.1",
 	  "subject": [
-		{ "name": "artifact", "digest": { "sha256": "deadbeef" } }
+		{ "name": "artifact", "digest": { "sha256": "deadbeef" }, "annotations": { "foo": "bar" } }
 	  ],
 	  "predicateType": "https://slsa.dev/provenance/v0.2"
 	}`
@@ -394,4 +448,5 @@ func TestTransformOutputSuccess(t *testing.T) {
 	assert.Equal(t, name, sci.Critical.Identity.DockerReference, "docker reference mismatch")
 	assert.Equal(t, "sha256:deadbeef", sci.Critical.Image.DockerManifestDigest, "digest mismatch")
 	assert.Equal(t, "https://slsa.dev/provenance/v0.2", sci.Critical.Type, "type mismatch")
+	assert.Equal(t, map[string]any{"foo": "bar"}, sci.Optional, "missing annotation")
 }

@@ -18,8 +18,8 @@ package signed
 import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 
-	"github.com/sigstore/cosign/v2/pkg/oci"
-	"github.com/sigstore/cosign/v2/pkg/oci/empty"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/empty"
 )
 
 // ImageIndex returns an oci.SignedImageIndex form of the v1.ImageIndex with

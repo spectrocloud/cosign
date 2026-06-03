@@ -31,10 +31,10 @@ import (
 	"strings"
 
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
-	"github.com/sigstore/cosign/v2/internal/ui"
-	"github.com/sigstore/cosign/v2/pkg/cosign/bundle"
-	"github.com/sigstore/cosign/v2/pkg/cosign/env"
+	"github.com/go-openapi/swag/conv"
+	"github.com/spectrocloud/cosign/v3/internal/ui"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/bundle"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/env"
 	"github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/rekor/pkg/generated/client/entries"
 	"github.com/sigstore/rekor/pkg/generated/models"
@@ -116,12 +116,11 @@ func GetTransparencyLogID(pub crypto.PublicKey) (string, error) {
 }
 
 func dsseEntry(ctx context.Context, signature, pubKey []byte) (models.ProposedEntry, error) {
-	var pubKeyBytes [][]byte
-
 	if len(pubKey) == 0 {
 		return nil, errors.New("public key provided has 0 length")
 	}
 
+	pubKeyBytes := make([][]byte, 0, 1)
 	pubKeyBytes = append(pubKeyBytes, pubKey)
 
 	return types.NewProposedEntry(ctx, dsse.KIND, dsse_v001.APIVERSION, types.ArtifactProperties{
@@ -131,12 +130,11 @@ func dsseEntry(ctx context.Context, signature, pubKey []byte) (models.ProposedEn
 }
 
 func intotoEntry(ctx context.Context, signature, pubKey []byte) (models.ProposedEntry, error) {
-	var pubKeyBytes [][]byte
-
 	if len(pubKey) == 0 {
 		return nil, errors.New("none of the Rekor public keys have been found")
 	}
 
+	pubKeyBytes := make([][]byte, 0, 1)
 	pubKeyBytes = append(pubKeyBytes, pubKey)
 
 	return types.NewProposedEntry(ctx, intoto.KIND, intoto_v001.APIVERSION, types.ArtifactProperties{
@@ -211,7 +209,7 @@ func TLogUpload(ctx context.Context, rekorClient *client.Rekor, signature []byte
 func TLogUploadWithCustomHash(ctx context.Context, rekorClient *client.Rekor, signature []byte, checksum NamedHash, pemBytes []byte) (*models.LogEntryAnon, error) {
 	re := rekorEntry(checksum, signature, pemBytes)
 	returnVal := models.Hashedrekord{
-		APIVersion: swag.String(re.APIVersion()),
+		APIVersion: conv.Pointer(re.APIVersion()),
 		Spec:       re.HashedRekordObj,
 	}
 	return doUpload(ctx, rekorClient, &returnVal)
@@ -286,8 +284,8 @@ func rekorEntry(checksum NamedHash, signature, pubKey []byte) hashedrekord_v001.
 		HashedRekordObj: models.HashedrekordV001Schema{
 			Data: &models.HashedrekordV001SchemaData{
 				Hash: &models.HashedrekordV001SchemaDataHash{
-					Algorithm: swag.String(rekorEntryHashAlgorithm(checksum)),
-					Value:     swag.String(hex.EncodeToString(checksum.Sum(nil))),
+					Algorithm: conv.Pointer(rekorEntryHashAlgorithm(checksum)),
+					Value:     conv.Pointer(hex.EncodeToString(checksum.Sum(nil))),
 				},
 			},
 			Signature: &models.HashedrekordV001SchemaSignature{
@@ -301,7 +299,11 @@ func rekorEntry(checksum NamedHash, signature, pubKey []byte) hashedrekord_v001.
 }
 
 func ComputeLeafHash(e *models.LogEntryAnon) ([]byte, error) {
-	entryBytes, err := base64.StdEncoding.DecodeString(e.Body.(string))
+	bodyStr, ok := e.Body.(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid body type: expected string, got %T", e.Body)
+	}
+	entryBytes, err := base64.StdEncoding.DecodeString(bodyStr)
 	if err != nil {
 		return nil, err
 	}
@@ -446,7 +448,7 @@ func proposedEntries(b64Sig string, payload, pubKey []byte) ([]models.ProposedEn
 		}
 		re := rekorEntry(sha256CheckSum, signature, pubKey)
 		entry := &models.Hashedrekord{
-			APIVersion: swag.String(re.APIVersion()),
+			APIVersion: conv.Pointer(re.APIVersion()),
 			Spec:       re.HashedRekordObj,
 		}
 		proposedEntry = []models.ProposedEntry{entry}
@@ -495,6 +497,9 @@ func VerifyTLogEntryOffline(ctx context.Context, e *models.LogEntryAnon, rekorPu
 	if e.Verification == nil || e.Verification.InclusionProof == nil {
 		return errors.New("inclusion proof not provided")
 	}
+	if e.Verification.InclusionProof.RootHash == nil || e.Verification.InclusionProof.LogIndex == nil || e.Verification.InclusionProof.TreeSize == nil {
+		return errors.New("inclusion proof fields not provided")
+	}
 
 	if trustedMaterial == nil && (rekorPubKeys == nil || rekorPubKeys.Keys == nil) {
 		return errors.New("no trusted rekor public keys provided")
@@ -507,7 +512,11 @@ func VerifyTLogEntryOffline(ctx context.Context, e *models.LogEntryAnon, rekorPu
 	}
 
 	rootHash, _ := hex.DecodeString(*e.Verification.InclusionProof.RootHash)
-	entryBytes, err := base64.StdEncoding.DecodeString(e.Body.(string))
+	bodyStr, ok := e.Body.(string)
+	if !ok {
+		return fmt.Errorf("invalid body type: expected string, got %T", e.Body)
+	}
+	entryBytes, err := base64.StdEncoding.DecodeString(bodyStr)
 	if err != nil {
 		return err
 	}

@@ -21,10 +21,10 @@ import (
 	"github.com/google/go-containerregistry/pkg/crane"
 	"github.com/google/go-containerregistry/pkg/name"
 
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v2/pkg/oci"
-	ociplatform "github.com/sigstore/cosign/v2/pkg/oci/platform"
-	"github.com/sigstore/cosign/v2/pkg/oci/remote"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	ociplatform "github.com/spectrocloud/cosign/v3/pkg/oci/platform"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/remote"
 
 	"github.com/spf13/cobra"
 )

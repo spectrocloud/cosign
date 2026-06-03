@@ -21,7 +21,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/sigstore/cosign/v2/pkg/cosign/env"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/env"
 )
 
 const (

@@ -21,11 +21,11 @@ import (
 	"fmt"
 
 	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v2/pkg/oci"
-	"github.com/sigstore/cosign/v2/pkg/oci/layout"
-	ociplatform "github.com/sigstore/cosign/v2/pkg/oci/platform"
-	ociremote "github.com/sigstore/cosign/v2/pkg/oci/remote"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/pkg/oci"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/layout"
+	ociplatform "github.com/spectrocloud/cosign/v3/pkg/oci/platform"
+	ociremote "github.com/spectrocloud/cosign/v3/pkg/oci/remote"
 	"github.com/spf13/cobra"
 )
 
@@ -49,14 +49,47 @@ func Save() *cobra.Command {
 }
 
 func SaveCmd(ctx context.Context, opts options.SaveOptions, imageRef string) error {
+	regClientOpts, err := opts.Registry.ClientOpts(ctx)
+	if err != nil {
+		return fmt.Errorf("constructing client options: %w", err)
+	}
+
 	ref, err := name.ParseReference(imageRef, opts.Registry.NameOptions()...)
 	if err != nil {
 		return fmt.Errorf("parsing image name %s: %w", imageRef, err)
 	}
 
+	// See if we are using referrers
+	digest, ok := ref.(name.Digest)
+	if !ok {
+		var err error
+		digest, err = ociremote.ResolveDigest(ref, regClientOpts...)
+		if err != nil {
+			return fmt.Errorf("resolving digest: %w", err)
+		}
+	}
+
+	indexManifest, err := ociremote.Referrers(digest, "", regClientOpts...)
+	if err != nil {
+		return fmt.Errorf("getting referrers: %w", err)
+	}
+
+	for _, manifest := range indexManifest.Manifests {
+		if manifest.ArtifactType == "" {
+			continue
+		}
+		artifactRef := ref.Context().Digest(manifest.Digest.String())
+		si, err := ociremote.SignedImage(artifactRef, regClientOpts...)
+		if err != nil {
+			return fmt.Errorf("getting signed image: %w", err)
+		}
+		if err := layout.WriteSignedImage(opts.Directory, si, ref, nil); err != nil {
+			return err
+		}
+	}
+
 	se, err := ociremote.SignedEntity(ref,
-		ociremote.WithCachePath(opts.CachePath),
-		ociremote.WithRemoteOptions(opts.Registry.GetRegistryClientOpts(ctx)...),
+		append(regClientOpts, ociremote.WithCachePath(opts.CachePath))...,
 	)
 	if err != nil {
 		return fmt.Errorf("signed entity: %w", err)

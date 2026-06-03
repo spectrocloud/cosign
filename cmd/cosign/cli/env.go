@@ -21,8 +21,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v2/pkg/cosign/env"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/env"
 	"github.com/spf13/cobra"
 )
 
@@ -132,7 +132,7 @@ func printEnv(envVars map[env.Variable]env.VariableOpts,
 }
 
 func sortEnvKeys(envVars map[env.Variable]env.VariableOpts) []env.Variable {
-	keys := []env.Variable{}
+	keys := make([]env.Variable, 0, len(envVars))
 	for k := range envVars {
 		keys = append(keys, k)
 	}

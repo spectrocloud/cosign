@@ -21,11 +21,11 @@ import (
 	"io"
 	"os"
 
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
-	icos "github.com/sigstore/cosign/v2/internal/pkg/cosign"
-	"github.com/sigstore/cosign/v2/internal/ui"
-	"github.com/sigstore/cosign/v2/pkg/cosign"
-	"github.com/sigstore/cosign/v2/pkg/cosign/env"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	icos "github.com/spectrocloud/cosign/v3/internal/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/internal/ui"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/env"
 )
 
 var (

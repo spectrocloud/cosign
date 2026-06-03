@@ -16,7 +16,7 @@
 package options
 
 import (
-	"github.com/sigstore/cosign/v2/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore/pkg/signature"
 )
@@ -50,7 +50,7 @@ type KeyOpts struct {
 	IssueCertificateForExistingKey bool
 
 	// FulcioAuthFlow is the auth flow to use when authenticating against
-	// Fulcio. See https://pkg.go.dev/github.com/sigstore/cosign/v2/cmd/cosign/cli/fulcio#pkg-constants
+	// Fulcio. See https://pkg.go.dev/github.com/spectrocloud/cosign/v3/cmd/cosign/cli/fulcio#pkg-constants
 	// for valid values.
 	FulcioAuthFlow string
 
@@ -72,4 +72,8 @@ type KeyOpts struct {
 	// By default, Ed25519ph is used for ed25519 keys and RSA-PKCS1v15 is used
 	// for RSA keys.
 	DefaultLoadOptions *[]signature.LoadOption
+
+	// SigningAlgorithm is the AlgorithmDetails string representation used to
+	// sign/hash the payload.
+	SigningAlgorithm string
 }

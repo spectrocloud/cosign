@@ -26,6 +26,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -38,13 +39,13 @@ import (
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/swag/conv"
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v2/internal/pkg/cosign/tsa/mock"
-	"github.com/sigstore/cosign/v2/internal/test"
-	"github.com/sigstore/cosign/v2/pkg/cosign"
-	"github.com/sigstore/cosign/v2/pkg/cosign/bundle"
-	sigs "github.com/sigstore/cosign/v2/pkg/signature"
-	ctypes "github.com/sigstore/cosign/v2/pkg/types"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/internal/pkg/cosign/tsa/mock"
+	"github.com/spectrocloud/cosign/v3/internal/test"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign"
+	"github.com/spectrocloud/cosign/v3/pkg/cosign/bundle"
+	sigs "github.com/spectrocloud/cosign/v3/pkg/signature"
+	ctypes "github.com/spectrocloud/cosign/v3/pkg/types"
 	protobundle "github.com/sigstore/protobuf-specs/gen/pb-go/bundle/v1"
 	protocommon "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/rekor/pkg/generated/models"
@@ -162,6 +163,18 @@ func TestVerifyBlob(t *testing.T) {
 		time.Now().Add(-time.Hour), leafPriv, rootCert, rootPriv)
 	expiredLeafPem, _ := cryptoutils.MarshalCertificateToPEM(expiredLeafCert)
 
+	unrelatedPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unrelatedSigner, err := signature.LoadECDSASignerVerifier(unrelatedPriv, crypto.SHA256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unrelatedLeafCert, _ := test.GenerateLeafCertWithExpiration(identity, issuer,
+		time.Now(), unrelatedPriv, rootCert, rootPriv)
+	unrelatedCertPem, _ := cryptoutils.MarshalCertificateToPEM(unrelatedLeafCert)
+
 	// Make rekor signer
 	rekorPriv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -178,7 +191,7 @@ func TestVerifyBlob(t *testing.T) {
 	tmpRekorPubFile := writeBlobFile(t, td, string(pemRekor), "rekor_pub.key")
 	t.Setenv("SIGSTORE_REKOR_PUBLIC_KEY", tmpRekorPubFile)
 
-	var makeSignature = func(blob []byte) string {
+	var makeSignature = func(blob []byte, signer signature.SignerVerifier) string {
 		sig, err := signer.SignMessage(bytes.NewReader(blob))
 		if err != nil {
 			t.Fatal(err)
@@ -186,10 +199,12 @@ func TestVerifyBlob(t *testing.T) {
 		return string(sig)
 	}
 	blobBytes := []byte("foo")
-	blobSignature := makeSignature(blobBytes)
+	blobSignature := makeSignature(blobBytes, signer)
 
 	otherBytes := []byte("bar")
-	otherSignature := makeSignature(otherBytes)
+	otherSignature := makeSignature(otherBytes, signer)
+
+	unrelatedSignature := makeSignature(blobBytes, unrelatedSigner)
 
 	// initialize timestamp for expired and unexpired certificates
 	expiredTSAOpts := mock.TSAClientOptions{Time: time.Now().Add(-time.Hour), Message: []byte(blobSignature)}
@@ -300,18 +315,27 @@ func TestVerifyBlob(t *testing.T) {
 		{
 			name:      "valid signature with public key - bad bundle cert mismatch",
 			blob:      blobBytes,
+			signature: unrelatedSignature,
+			key:       pubKeyBytes,
+			bundlePath: makeLocalBundle(t, *rekorSigner, blobBytes, []byte(unrelatedSignature),
+				unrelatedCertPem, true),
+			shouldErr: true,
+		},
+		{
+			name:      "valid signature with public key and bundle cert derived from public key",
+			blob:      blobBytes,
 			signature: blobSignature,
 			key:       pubKeyBytes,
 			bundlePath: makeLocalBundle(t, *rekorSigner, blobBytes, []byte(blobSignature),
 				unexpiredCertPem, true),
-			shouldErr: true,
+			shouldErr: false,
 		},
 		{
 			name:      "valid signature with public key - bad bundle signature mismatch",
 			blob:      blobBytes,
 			signature: blobSignature,
 			key:       pubKeyBytes,
-			bundlePath: makeLocalBundle(t, *rekorSigner, blobBytes, []byte(makeSignature(blobBytes)),
+			bundlePath: makeLocalBundle(t, *rekorSigner, blobBytes, []byte(makeSignature(blobBytes, signer)),
 				pubKeyBytes, true),
 			shouldErr: true,
 		},
@@ -366,20 +390,11 @@ func TestVerifyBlob(t *testing.T) {
 			shouldErr: true,
 		},
 		{
-			name:      "valid signature with unexpired certificate - bad bundle cert mismatch",
-			blob:      blobBytes,
-			signature: blobSignature,
-			key:       pubKeyBytes,
-			bundlePath: makeLocalBundle(t, *rekorSigner, blobBytes, []byte(blobSignature),
-				unexpiredCertPem, true),
-			shouldErr: true,
-		},
-		{
 			name:      "valid signature with unexpired certificate - bad bundle signature mismatch",
 			blob:      blobBytes,
 			signature: blobSignature,
 			cert:      unexpiredLeafCert,
-			bundlePath: makeLocalBundle(t, *rekorSigner, blobBytes, []byte(makeSignature(blobBytes)),
+			bundlePath: makeLocalBundle(t, *rekorSigner, blobBytes, []byte(makeSignature(blobBytes, signer)),
 				unexpiredCertPem, true),
 			shouldErr: true,
 		},
@@ -572,7 +587,7 @@ func TestVerifyBlob(t *testing.T) {
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt
-			entries := make([]models.LogEntry, 0)
+			entries := make([]models.LogEntry, 0, len(tt.rekorEntry))
 			for _, entry := range tt.rekorEntry {
 				entries = append(entries, *entry)
 			}
@@ -616,6 +631,7 @@ func TestVerifyBlob(t *testing.T) {
 			if tt.key != nil {
 				keyPath := writeBlobFile(t, td, string(tt.key), "key.pem")
 				cmd.KeyRef = keyPath
+				cmd.CertVerifyOptions = options.CertVerifyOptions{}
 			}
 			if tt.newBundle {
 				cmd.TrustedRootPath = writeTrustedRootFile(t, td, "{\"mediaType\":\"application/vnd.dev.sigstore.trustedroot+json;version=0.1\"}")
@@ -647,17 +663,88 @@ func TestVerifyBlobCertMissingSubject(t *testing.T) {
 	}
 }
 
-func TestVerifyBlobCertMissingIssuer(t *testing.T) {
+func TestVerifyBlobMutuallyExclusiveFlags(t *testing.T) {
 	ctx := context.Background()
-	verifyBlob := VerifyBlobCmd{
-		CertRef: "cert.pem",
-		CertVerifyOptions: options.CertVerifyOptions{
-			CertIdentity: "subject",
+	tts := []struct {
+		name          string
+		cmd           VerifyBlobCmd
+		expectedError error
+	}{
+		{
+			name: "both key and cert identity",
+			cmd: VerifyBlobCmd{
+				KeyOpts: options.KeyOpts{
+					KeyRef:     "key.pub",
+					BundlePath: "bundle.sigstore.json",
+				},
+				CertVerifyOptions: options.CertVerifyOptions{
+					CertIdentity: "hello@foo.com",
+				},
+			},
+			expectedError: &options.KeyAndIdentityParseError{},
+		},
+		{
+			name: "both key and cert identity regex",
+			cmd: VerifyBlobCmd{
+				KeyOpts: options.KeyOpts{
+					KeyRef:     "key.pub",
+					BundlePath: "bundle.sigstore.json",
+				},
+				CertVerifyOptions: options.CertVerifyOptions{
+					CertIdentityRegexp: "^.*@foo.com$",
+				},
+			},
+			expectedError: &options.KeyAndIdentityParseError{},
+		},
+		{
+			name: "both cert identity and cert identity regex",
+			cmd: VerifyBlobCmd{
+				KeyOpts: options.KeyOpts{
+					BundlePath: "bundle.sigstore.json",
+				},
+				CertVerifyOptions: options.CertVerifyOptions{
+					CertIdentity:       "hello@foo.com",
+					CertIdentityRegexp: "^.*@foo.com$",
+				},
+			},
+			expectedError: &options.KeyAndIdentityParseError{},
+		},
+		{
+			name: "both key and secret key",
+			cmd: VerifyBlobCmd{
+				KeyOpts: options.KeyOpts{
+					KeyRef: "key.pub",
+					Sk:     true,
+				},
+			},
+			expectedError: &options.PubKeyParseError{},
 		},
 	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cmd.Exec(ctx, "foo")
+			if !errors.Is(err, tt.expectedError) {
+				t.Fatalf("expected %T, got: %T, %v", tt.expectedError, err, err)
+			}
+		})
+	}
+}
+
+func TestVerifyBlobKeyAndCertIdentity(t *testing.T) {
+	ctx := context.Background()
+	verifyBlob := VerifyBlobCmd{
+		KeyOpts: options.KeyOpts{
+			KeyRef: "key.pub",
+		},
+		CertVerifyOptions: options.CertVerifyOptions{
+			CertIdentity: "hello@foo.com",
+		},
+	}
+	var expectedErr *options.KeyAndIdentityParseError
 	err := verifyBlob.Exec(ctx, "blob")
-	if err == nil {
-		t.Fatalf("verifyBlob() expected '--certificate-oidc-issuer required'")
+	if !errors.As(err, &expectedErr) {
+		t.Fatalf("expected KeyAndIdentityParseError, got: %T, %v", err, err)
 	}
 }
 
@@ -956,6 +1043,7 @@ func TestVerifyBlobCmdWithBundle(t *testing.T) {
 			SignaturePath: "", // Sig is fetched from bundle
 			KeyOpts:       options.KeyOpts{BundlePath: bundlePath},
 			IgnoreSCT:     true,
+			PredicateType: "customFoo",
 		}
 		if err := cmd.Exec(context.Background(), blobPath); err != nil {
 			t.Fatal(err)
@@ -993,6 +1081,7 @@ func TestVerifyBlobCmdWithBundle(t *testing.T) {
 			SignaturePath: "", // Sig is fetched from bundle
 			KeyOpts:       options.KeyOpts{BundlePath: bundlePath},
 			IgnoreSCT:     true,
+			PredicateType: "customFoo",
 		}
 		if err := cmd.Exec(context.Background(), blobPath); err != nil {
 			t.Fatal(err)
@@ -1325,6 +1414,7 @@ func TestVerifyBlobCmdWithBundle(t *testing.T) {
 			KeyOpts:       options.KeyOpts{BundlePath: bundlePath},
 			IgnoreSCT:     true,
 			CheckClaims:   false, // Intentionally false. This checks the subject claim. This is tested in verify_blob_attestation_test.go
+			PredicateType: "customFoo",
 		}
 		if err := cmd.Exec(context.Background(), blobPath); err != nil {
 			t.Fatal(err)
@@ -1454,7 +1544,7 @@ func (s *keylessStack) genLeafCert(t *testing.T, subject string, issuer string) 
 }
 
 func (s *keylessStack) genChainFile(t *testing.T) {
-	var chain []byte
+	chain := make([]byte, 0, len(s.subPemCert)+len(s.rootPemCert))
 	chain = append(chain, s.subPemCert...)
 	chain = append(chain, s.rootPemCert...)
 	tmpChainFile, err := os.CreateTemp(s.td, "cosign_fulcio_chain_*.cert")
@@ -1638,7 +1728,7 @@ func writeTimestampFile(t *testing.T, td string, ts *bundle.RFC3161Timestamp, na
 	return path
 }
 
-func writeTrustedRootFile(t *testing.T, td, contents string) string {
+func writeTrustedRootFile(t *testing.T, td, contents string) string { //nolint: unparam
 	path := filepath.Join(td, "trusted_root.json")
 	if err := os.WriteFile(path, []byte(contents), 0644); err != nil {
 		t.Fatal(err)

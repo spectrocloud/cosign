@@ -20,9 +20,9 @@ import (
 	"fmt"
 
 	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/sigstore/cosign/v2/cmd/cosign/cli/options"
-	"github.com/sigstore/cosign/v2/pkg/oci/layout"
-	"github.com/sigstore/cosign/v2/pkg/oci/remote"
+	"github.com/spectrocloud/cosign/v3/cmd/cosign/cli/options"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/layout"
+	"github.com/spectrocloud/cosign/v3/pkg/oci/remote"
 	"github.com/spf13/cobra"
 )
 
@@ -78,7 +78,7 @@ func LoadCmd(ctx context.Context, opts options.LoadOptions, imageRef string) err
 	}
 
 	if opts.Registry.Name == "" {
-		return remote.WriteSignedImageIndexImages(ref, sii, ociremoteOpts...)
+		return remote.WriteSignedImageIndexImages(ref, sii, opts.Directory, ociremoteOpts...)
 	}
 	return remote.WriteSignedImageIndexImagesBulk(opts.Registry.Name, sii, ociremoteOpts...)
 }

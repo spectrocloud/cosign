@@ -19,7 +19,6 @@ A tool for Container Signing, Verification and Storage in an OCI registry.
 * [cosign bundle](cosign_bundle.md)	 - Interact with a Sigstore protobuf bundle
 * [cosign clean](cosign_clean.md)	 - Remove all signatures from an image.
 * [cosign completion](cosign_completion.md)	 - Generate completion script
-* [cosign copy](cosign_copy.md)	 - Copy the supplied container image and signatures.
 * [cosign dockerfile](cosign_dockerfile.md)	 - Provides utilities for discovering images in and performing operations on Dockerfiles
 * [cosign download](cosign_download.md)	 - Provides utilities for downloading artifacts and attached artifacts in a registry
 * [cosign env](cosign_env.md)	 - Prints Cosign environment variables
@@ -38,7 +37,6 @@ A tool for Container Signing, Verification and Storage in an OCI registry.
 * [cosign sign-blob](cosign_sign-blob.md)	 - Sign the supplied blob, outputting the base64-encoded signature to stdout.
 * [cosign signing-config](cosign_signing-config.md)	 - Interact with a Sigstore protobuf signing config
 * [cosign tree](cosign_tree.md)	 - Display supply chain security related artifacts for an image such as signatures, SBOMs and attestations
-* [cosign triangulate](cosign_triangulate.md)	 - Outputs the located cosign image reference. This is the location where cosign stores the specified artifact type.
 * [cosign trusted-root](cosign_trusted-root.md)	 - Interact with a Sigstore protobuf trusted root
 * [cosign upload](cosign_upload.md)	 - Provides utilities for uploading artifacts to a registry
 * [cosign verify](cosign_verify.md)	 - Verify a signature on the supplied container image
