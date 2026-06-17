@@ -52,7 +52,7 @@ func WriteSignedEntity(dst name.Reference, si oci.SignedEntity, opts ...Option) 
 		}
 	case oci.SignedImageIndex:
 		fmt.Println("writing signed image index to", dst.Name())
-		if err := goremote.WriteIndex(dst, si, o.ROpt...); err != nil {
+		if err := writeIndexLeavesFirst(dst, si, o.ROpt...); err != nil {
 			return fmt.Errorf("writing index: %w", err)
 		}
 	default:
@@ -72,6 +72,36 @@ func WriteSignedEntity(dst name.Reference, si oci.SignedEntity, opts ...Option) 
 	}
 
 	return nil
+}
+
+// writeIndexLeavesFirst pushes each child of ii by digest before publishing the index.
+func writeIndexLeavesFirst(dst name.Reference, ii v1.ImageIndex, opts ...goremote.Option) error {
+	im, err := ii.IndexManifest()
+	if err != nil {
+		return fmt.Errorf("index manifest: %w", err)
+	}
+	for _, desc := range im.Manifests {
+		childRef := dst.Context().Digest(desc.Digest.String())
+		switch {
+		case desc.MediaType.IsIndex():
+			child, err := ii.ImageIndex(desc.Digest)
+			if err != nil {
+				return fmt.Errorf("child index %s: %w", desc.Digest, err)
+			}
+			if err := writeIndexLeavesFirst(childRef, child, opts...); err != nil {
+				return err
+			}
+		case desc.MediaType.IsImage():
+			child, err := ii.Image(desc.Digest)
+			if err != nil {
+				return fmt.Errorf("child image %s: %w", desc.Digest, err)
+			}
+			if err := goremote.Write(childRef, child, opts...); err != nil {
+				return fmt.Errorf("writing child image %s: %w", desc.Digest, err)
+			}
+		}
+	}
+	return goremote.WriteIndex(dst, ii, opts...)
 }
 
 func writeSignedEntitySignatures(dst name.Reference, si oci.SignedEntity, opts ...Option) error {

@@ -17,11 +17,15 @@ package remote
 
 import (
 	"fmt"
+	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
 	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/google/go-containerregistry/pkg/registry"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
+	gcrmutate "github.com/google/go-containerregistry/pkg/v1/mutate"
 	"github.com/google/go-containerregistry/pkg/v1/random"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	"github.com/google/go-containerregistry/pkg/v1/static"
@@ -540,4 +544,78 @@ func TestWriteReferrerErrorHandling(t *testing.T) {
 	if !strings.Contains(err.Error(), "remote head failed") {
 		t.Errorf("Expected error to contain 'remote head failed', got %v", err)
 	}
+}
+
+// TestWriteSignedEntity_IndexHealsMissingChild asserts a deleted index child is restored on re-push.
+func TestWriteSignedEntity_IndexHealsMissingChild(t *testing.T) {
+	imgA, err := random.Image(64, 2)
+	if err != nil {
+		t.Fatalf("random.Image: %v", err)
+	}
+	imgB, err := random.Image(64, 2)
+	if err != nil {
+		t.Fatalf("random.Image: %v", err)
+	}
+	idx := gcrmutate.AppendManifests(
+		gcrmutate.IndexMediaType(newEmptyIndex(), types.OCIImageIndex),
+		gcrmutate.IndexAddendum{Add: imgA, Descriptor: v1.Descriptor{Platform: &v1.Platform{Architecture: "amd64", OS: "linux"}}},
+		gcrmutate.IndexAddendum{Add: imgB, Descriptor: v1.Descriptor{Platform: &v1.Platform{Architecture: "arm64", OS: "linux"}}},
+	)
+	sii := signed.ImageIndex(idx)
+
+	srv := httptest.NewServer(registry.New())
+	defer srv.Close()
+	u, _ := url.Parse(srv.URL)
+	tagRef, err := name.ParseReference(fmt.Sprintf("%s/test/multiarch:v1", u.Host))
+	if err != nil {
+		t.Fatalf("ParseReference: %v", err)
+	}
+
+	if err := WriteSignedEntity(tagRef, sii); err != nil {
+		t.Fatalf("first WriteSignedEntity: %v", err)
+	}
+
+	idxManifest, err := sii.IndexManifest()
+	if err != nil {
+		t.Fatalf("IndexManifest: %v", err)
+	}
+	if len(idxManifest.Manifests) == 0 {
+		t.Fatal("expected at least one child manifest")
+	}
+	childDigest := idxManifest.Manifests[0].Digest
+	childRef := tagRef.Context().Digest(childDigest.String())
+	if err := remote.Delete(childRef); err != nil {
+		t.Fatalf("delete child %s: %v", childDigest, err)
+	}
+	if _, err := remote.Head(childRef); err == nil {
+		t.Fatalf("child %s still present after delete", childDigest)
+	}
+
+	if err := WriteSignedEntity(tagRef, sii); err != nil {
+		t.Fatalf("second WriteSignedEntity: %v", err)
+	}
+
+	if _, err := remote.Head(childRef); err != nil {
+		t.Fatalf("child %s not restored: %v", childDigest, err)
+	}
+}
+
+func newEmptyIndex() v1.ImageIndex {
+	return gcrmutate.IndexMediaType(localEmptyIndex{}, types.OCIImageIndex)
+}
+
+type localEmptyIndex struct{}
+
+func (localEmptyIndex) MediaType() (types.MediaType, error) { return types.OCIImageIndex, nil }
+func (localEmptyIndex) Digest() (v1.Hash, error)            { return v1.Hash{}, nil }
+func (localEmptyIndex) Size() (int64, error)                { return 0, nil }
+func (localEmptyIndex) IndexManifest() (*v1.IndexManifest, error) {
+	return &v1.IndexManifest{SchemaVersion: 2, MediaType: types.OCIImageIndex}, nil
+}
+func (localEmptyIndex) RawManifest() ([]byte, error) {
+	return []byte(`{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[]}`), nil
+}
+func (localEmptyIndex) Image(_ v1.Hash) (v1.Image, error) { return nil, fmt.Errorf("no images") }
+func (localEmptyIndex) ImageIndex(_ v1.Hash) (v1.ImageIndex, error) {
+	return nil, fmt.Errorf("no indexes")
 }
